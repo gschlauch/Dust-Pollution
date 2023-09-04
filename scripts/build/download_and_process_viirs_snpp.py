@@ -21,21 +21,6 @@ orbnav = Client()
 # JSTAR Mapper: https://www.star.nesdis.noaa.gov/jpss/mapper/
 # SNPP satellite passing through bounding box visual: https://www.ssec.wisc.edu/datacenter/polar_orbit_tracks/data/NPP/
 
-
-
-
-
-# TODOS
-# Plot for several days in R and compare to mapper (requires merging in R)
-# Do the whole batch
-# Later on, check if there are some days with shit loads of files that cant load for whatever reason
-
-
-
-
-
-
-
 # Setup -----------------------------------------------------------------------
 
 # Set filepaths
@@ -214,13 +199,13 @@ def aws_viirs_list(
     # Create list of subsetted file names that fall within specified time period(s)
     data = []
     for file in day_files:
-        # Check that the file has the correct ymd
-        assert file.split("_")[-3][1:9] == year_str + month_str + day_str
-        # Get the file start hour, minute
+        # Get the file start hour and minute
         file_time = file.split("_")[-3][9:13]
         # Filter the file start time based on the start and end hour of the satellite
         # entering/exiting the bounding box
         if file_time >= (start_hour + start_min) and file_time <= (end_hour + end_min):
+            # Check that the file starts on the correct date
+            assert file.split("_")[-3][1:9] == year_str + month_str + day_str
             data.append(file)
     return data
 
@@ -474,7 +459,7 @@ def delete_files_in_directory(dirpath):
 # Run script ------------------------------------------------------------------
 
 # Set the start and end date (inclusive)
-start_date = date(2012, 5, 1)
+start_date = date(2014, 1, 26)
 end_date = date(2022, 12, 31)
 daterange = pd.date_range(start_date, end_date)
 
