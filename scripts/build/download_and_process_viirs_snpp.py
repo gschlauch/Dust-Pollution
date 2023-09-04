@@ -2,7 +2,7 @@ from orbnav_client import Client  # Module to access OrbNav API to get Boxtimes
 from packaging.version import parse
 import sys
 from tqdm import tqdm  # Library to create progress bars for loops/functions
-from datetime import datetime
+from datetime import datetime, date
 import s3fs  # Module to interface with Amazon Simple Storage Service (S3)
 import xarray as xr
 import numpy as np
@@ -14,17 +14,18 @@ import warnings
 warnings.filterwarnings("ignore")
 orbnav = Client()
 
-
+# Boxtimes documentation: https://sips.ssec.wisc.edu/orbnav/api/v1
+# NOAA code for downloading files from AWS: https://www.star.nesdis.noaa.gov/atmospheric-composition-training/python_viirs_level2_download.php
+# AWS folder: https://noaa-jpss.s3.amazonaws.com/index.html#SNPP/VIIRS/SNPP_VIIRS_Aerosol_Detection_EDR_Reprocessed/
+# Boxtimes online interface: https://sips.ssec.wisc.edu/orbnav#/tools/boxtimes
+# JSTAR Mapper: https://www.star.nesdis.noaa.gov/jpss/mapper/
+# SNPP satellite passing through bounding box visual: https://www.ssec.wisc.edu/datacenter/polar_orbit_tracks/data/NPP/
 
 
 
 
 
 # TODOS
-# Set the name of the .csv
-# Store the .csv in its yearly folder
-# Add for loop to loop through date times with a start and end date parameter I can adjust
-# add an assertion for the AWS files being downloaded to have the correct date
 # Plot for several days in R and compare to mapper (requires merging in R)
 # Do the whole batch
 # Later on, check if there are some days with shit loads of files that cant load for whatever reason
@@ -45,14 +46,7 @@ path_int_viirs = path_int + "/viirs"
 path_int_grid = path_int + "/grid"
 path_int_temp = path_int + "/temp"
 
-# Set boxtimes parameters
-
-# Change these
-year = 2021
-month = 9
-day = 1
-
-# Don't change these
+# Set boxtimes parameters (don't change)
 lonmin = -135
 lonmax = -60
 latmin = 5
@@ -92,7 +86,8 @@ def boxtimes_viirs_list(
     #     the bounding box defined by the lat/lon variables
     # n: (int) the number of separate times the satellite enters the bounding box
     #
-
+    
+    print("Getting boxtimes for " + str(year).zfill(2) + "/" + str(month).zfill(2) + "/" + str(day).zfill(2))
     dict_times = orbnav.boxtimes(
         sat=satname_boxtimes,
         start=datetime(year, month, day, 0, 0, 0),
@@ -219,10 +214,14 @@ def aws_viirs_list(
     # Create list of subsetted file names that fall within specified time period(s)
     data = []
     for file in day_files:
+        # Check that the file has the correct ymd
+        assert file.split("_")[-3][1:9] == year_str + month_str + day_str
+        # Get the file start hour, minute
         file_time = file.split("_")[-3][9:13]
+        # Filter the file start time based on the start and end hour of the satellite
+        # entering/exiting the bounding box
         if file_time >= (start_hour + start_min) and file_time <= (end_hour + end_min):
             data.append(file)
-
     return data
 
 
@@ -387,18 +386,27 @@ def process_viirs_adp_saai(ds):
 
 # Function to run process_viirs_adp_detection on all files for a given day and
 # extract the lat/lons of the dust pixels onto a uniform grid shapefile
-def process_viirs_adp_detection_daily(gdf_grid, path_in, path_out):
+def process_viirs_adp_detection_daily(gdf_grid, path_in, path_out, year, month, day):
     #
     # inputs
     # gdf_grid: a gridded shapefile with WGS84 datum lat/lon with grid cell numbers
     #      stored in a column
     # path_in: the full filepath of the folder containing the VIIRS .nc files
     # path_out: the full filepath of the directory where the dataframe will output
+    # year: (int) the year
+    # month: (int) the month of the year
+    # day: (int) the day of the month
     #
     # outputs
     # df_intersections: a DataFrame with the grid cell numbers of gdf for grid
     #                   cells that contain any dust pixel on a given day
     #
+    
+    # Store the ymd as strings
+    year_str = str(year).zfill(2)
+    month_str = str(month).zfill(2)
+    day_str = str(day).zfill(2)
+    print("Processing files for " + year_str + "/" + month_str + "/" + day_str, end = "")
 
     # Initialize empty arrays to store the latitudes/longitudes with dust
     lat_dust_all = np.array([])
@@ -431,7 +439,7 @@ def process_viirs_adp_detection_daily(gdf_grid, path_in, path_out):
             if len(lat_dust) > 0:
                 lat_dust_all = np.concatenate((lat_dust_all, lat_dust))
                 lon_dust_all = np.concatenate((lon_dust_all, lon_dust))
-
+    
     # Create a DataFrame from the latitude and longitude arrays
     df = pd.DataFrame({"Latitude": lat_dust_all, "Longitude": lon_dust_all})
     df = df.drop_duplicates(subset=["Latitude", "Longitude"], keep="first")
@@ -453,9 +461,9 @@ def process_viirs_adp_detection_daily(gdf_grid, path_in, path_out):
     df_intersections = df_intersections[["ID", "dust"]]
 
     # Output
-    filepath_out = path_out + "/grid_latlong_0p1_degree_dust_cells.csv"
+    filepath_out = path_out + "/" + year_str + "/" + "grid_latlong_0p1_degree_dust_" + year_str + month_str + day_str + ".csv"
     df_intersections.to_csv(filepath_out, index=False)
-
+    print("Processing complete!\n")
 
 def delete_files_in_directory(dirpath):
     filelist = [f for f in os.listdir(dirpath)]
@@ -465,27 +473,49 @@ def delete_files_in_directory(dirpath):
 
 # Run script ------------------------------------------------------------------
 
+# Set the start and end date (inclusive)
+start_date = date(2012, 5, 1)
+end_date = date(2022, 12, 31)
+daterange = pd.date_range(start_date, end_date)
+
 # Main function
 if __name__ == "__main__":
     
-    # Delete all files in the temporary directory where the .nc files are stored
+    # Loop through dates from start_date to end_date (inclusive)
+    for single_date in daterange:
+            
+        # Delete all files in the temporary directory where the .nc files are stored
+        delete_files_in_directory(path_int_temp)
+        
+        # Get the year, month, and day
+        year = single_date.year
+        month = single_date.month
+        day = single_date.day
+        
+        # Download .nc files for a given day
+        get_viirs_files(
+            year,
+            month,
+            day,
+            satname_boxtimes,
+            lonmin,
+            lonmax,
+            latmin,
+            latmax,
+            satname_aws,
+            product_aws,
+            processing_aws,
+            path_int_temp,
+        )
+    
+        # Process files for that day and output a single .csv containing the 
+        # grid cells of gdf_grid containing any dust on that day
+        process_viirs_adp_detection_daily(gdf_grid, path_int_temp, path_int_viirs, year, month, day)
+    
+    # Delete the files in the temporary directory one last time
     delete_files_in_directory(path_int_temp)
     
-    # Download .nc files for a given day
-    get_viirs_files(
-        year,
-        month,
-        day,
-        satname_boxtimes,
-        lonmin,
-        lonmax,
-        latmin,
-        latmax,
-        satname_aws,
-        product_aws,
-        processing_aws,
-        path_int_temp,
-    )
-
-    # Process files for that day
-    process_viirs_adp_detection_daily(gdf_grid, path_int_temp, path_int_viirs)
+    
+    
+    
+    
