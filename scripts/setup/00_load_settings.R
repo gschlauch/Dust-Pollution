@@ -3,14 +3,13 @@ rm(list=ls())
 options(stringsAsFactors = F)
 
 # Set to location of Box folder
-path_box <- "/Users/garyschlauch/Library/CloudStorage/Box-Box/second_year_paper"
+path_box <- "/Users/garyschlauch/Library/CloudStorage/Box-Box/Dust-Pollution"
 
 # File paths based on root folder above
 path_raw <- paste0(path_box, "/data/raw")
 path_raw_census <- paste0(path_raw, "/census")
 path_raw_epa <- paste0(path_raw, "/epa")
 path_raw_improve <- paste0(path_raw, "/improve")
-path_raw_viirs_adp <- paste0(path_raw, "/viirs_adp")
 path_raw_prism <- paste0(path_raw, "/prism")
 path_raw_usda <- paste0(path_raw, "/usda")
 path_raw_narr <- paste0(path_raw, "/narr")
