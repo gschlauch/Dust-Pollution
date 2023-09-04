@@ -459,7 +459,7 @@ def delete_files_in_directory(dirpath):
 # Run script ------------------------------------------------------------------
 
 # Set the start and end date (inclusive)
-start_date = date(2014, 1, 26)
+start_date = date(2014, 1, 28)
 end_date = date(2022, 12, 31)
 daterange = pd.date_range(start_date, end_date)
 
