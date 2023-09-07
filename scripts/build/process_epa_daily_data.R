@@ -3,6 +3,10 @@
 # Written by: Gary Schlauch
 #-------------------------------------------------------------------------------
 
+setwd("/Users/garyschlauch/Documents/github/Dust-Pollution")
+source("scripts/setup/00_load_settings.R")
+source("scripts/setup/00_load_packages.R")
+
 # Functions --------------------------------------------------------------------
 
 # Clean a single PM10 file
@@ -71,17 +75,17 @@ qa_compare_df_filename <- function(df, filename) {
 
   # Check that the state and year matches
   if (all(df$state == state_file) != T) {
-    stop("The state is in the dataframe does not match the state in the filename")
+    stop("The state in the dataframe does not match the state in the filename")
   }
   if (all(year(df$date) == as.integer(year_file)) != T) {
-    stop("The year is in the dataframe does not match the state in the filename")
+    stop("The year in the dataframe does not match the year in the filename")
   }
 }
 
 
 # Append the PM10 daily data ---------------------------------------------------
 
-filepath_base <- paste0(path_raw_epa, "/mass/pm10/daily")
+filepath_base <- paste0(path_data_raw, "/epa/mass/pm10/daily")
 files <- list.files(filepath_base, pattern = "^PM10_daily_.*\\.csv$")
 
 # Initialize dataframe to store results
@@ -115,7 +119,7 @@ rm(df, filepath_base, files, i, n)
 
 # Append the PM2.5 daily data --------------------------------------------------
 
-filepath_base <- paste0(path_raw_epa, "/mass/pm25/daily")
+filepath_base <- paste0(path_data_raw, "/epa/mass/pm25/daily")
 files <- list.files(filepath_base, pattern = "^PM25_daily_.*\\.csv$")
 
 # Initialize dataframe to store results
@@ -158,7 +162,7 @@ df_combined <- full_join(df_pm10, df_pm25, by = c("site_id", "state", "site_lat"
 rm(df_pm10, df_pm25)
 
 # Output site-day panel
-write_csv(df_combined, paste0(path_int_epa, "/panel_pollution_by_site_day_pollutant.csv"))
+write_csv(df_combined, paste0(path_data_int, "/epa/panel_pollution_by_site_day_pollutant.csv"))
 
 # Get the number of observations by site-year-pollutant ------------------------
 
@@ -199,7 +203,7 @@ df_obs_balanced <- left_join(df_obs_balanced, df_obs, by = c("site_id", "year"))
 df_obs_balanced <- df_obs_balanced %>%
   mutate_at(c("n_obs_by_site_yr_pm10", "n_obs_by_site_yr_pm25"), ~ ifelse(is.na(.), 0, .))
 
-write_csv(df_obs_balanced, paste0(path_int_epa, "/panel_nobs_by_site_year_pollutant.csv"))
+write_csv(df_obs_balanced, paste0(path_data_int, "/epa/panel_nobs_by_site_year_pollutant.csv"))
 rm(df_obs_balanced, df_obs, df_pm10_obs, df_pm25_obs)
 
 # Create a crosswalk of EPA stations to 0.1 degree grid cell numbers ----------
@@ -210,7 +214,7 @@ shp_epa <- df_combined %>%
   st_as_sf(coords = c("site_lon", "site_lat"), crs = 4326)
 
 # Load the 0.1 degree grid cell spatial dataframe
-shp_grid <- st_read(paste0(path_int_grid, "/grid_latlong_0p1_degree.shp"))
+shp_grid <- st_read(paste0(path_data_int, "/grid/grid_latlong_0p1_degree.shp"))
 
 # Spatially intersect the EPA station lat/lons with the grid cells
 df_xwalk <- st_join(shp_epa, shp_grid) %>%
@@ -218,5 +222,9 @@ df_xwalk <- st_join(shp_epa, shp_grid) %>%
   as.data.frame() %>%
   dplyr::select(-geometry)
 
-write_csv(df_xwalk, paste0(path_int_xwalks, "/xwalk_EPAstation_to_GridID.csv"))
+# Check that there is only 1 grid cell per site 
+# (note that there can be more than 1 site per grid cell)
+check_df_unique_by(df_xwalk, site_id)
+
+write_csv(df_xwalk, paste0(path_data_int, "/xwalks/xwalk_EPAstation_to_GridID.csv"))
 

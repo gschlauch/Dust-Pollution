@@ -4,6 +4,10 @@
 # Written by: Gary Schlauch
 #-------------------------------------------------------------------------------
 
+setwd("/Users/garyschlauch/Documents/github/Dust-Pollution")
+source("scripts/setup/00_load_settings.R")
+source("scripts/setup/00_load_packages.R")
+
 # Adjust the census unit and year
 census_unit <- "county"
 census_year <- "2000"
@@ -15,7 +19,7 @@ create_binary_cropland <- function(x) {
 }
 
 # Get raster file paths
-subdirectories <- list.dirs(paste0(path_raw_usda, "/cdl"), full.names = TRUE, recursive = FALSE)
+subdirectories <- list.dirs(paste0(path_data_raw, "/usda/cdl"), full.names = TRUE, recursive = FALSE)
 raster_file_paths <- c()
 for (subdir in subdirectories) {
   files <- list.files(subdir, full.names = TRUE, pattern = ".tif$")
@@ -137,7 +141,7 @@ for (state in states) {
   
   # Output
   print("Saving...")
-  file_out <- paste0(path_int_temp, "/", shp_name, "_s", state, "_cdl.csv")
+  file_out <- paste0(path_temp, "/", shp_name, "_s", state, "_cdl.csv")
   write_csv(out, file_out)
   rm(out)
   
@@ -146,7 +150,7 @@ for (state in states) {
 }
 
 # Append the files for each state
-temp_files <- list.files(path_int_temp, full.names = TRUE, pattern = "_cdl.csv$")
+temp_files <- list.files(path_temp, full.names = TRUE, pattern = "_cdl.csv$")
 df_final <-  read_csv(temp_files[1])
 for (f in temp_files[-1]){
   df <- read_csv(f)

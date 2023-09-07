@@ -5,6 +5,10 @@
 # Written by: Gary Schlauch
 #-------------------------------------------------------------------------------
 
+setwd("/Users/garyschlauch/Documents/github/Dust-Pollution")
+source("scripts/setup/00_load_settings.R")
+source("scripts/setup/00_load_packages.R")
+
 # Functions --------------------------------------------------------------------
 
 clean_dust_file <- function(filepath) {
@@ -39,7 +43,10 @@ for (filepath in filepaths[-1]) {
 }
 rm(df)
 
-df_dust %>%
+df_dust <- df_dust %>%
   dplyr::rename(grid_id_0p1latlon = ID)
+
+# Output
+write_csv(df_dust, paste0(path_data_int, "/viirs/panel_dustgrid_0p1deg_latlon.csv"))
 
 

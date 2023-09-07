@@ -1,27 +1,7 @@
 
-# Get the extent from the Great Plains states
-# note: no agreement on what these states/regions are. Here are some. try to find
-# better definition
-
-# New Mexico: 35
-# Texas: 48
-# Oklahoma: 40
-# Kansas: 20
-# Nebraska: 31
-# South Dakota: 46
-# North Dakota: 38
-# Iowa: 19
-# Montana: 30
-# Wyoming: 56
-# Colorado: 08
-# Missouri: 29
-
-# state2000 <- st_read(paste0(path_int_census, "/2000/state/US_state_2000.shp")) %>%
-#   filter(statefp %in% c("35", "48", "40", "20", "31", "46", "38", "19", "30", "56", "08", "29"))
-# xmin <- extent(state2000)[1] - 0.1
-# xmax <- extent(state2000)[2] + 0.1
-# ymin <- extent(state2000)[3] - 0.1
-# ymax <- extent(state2000)[4] + 0.1
+setwd("/Users/garyschlauch/Documents/github/Dust-Pollution")
+source("scripts/setup/00_load_settings.R")
+source("scripts/setup/00_load_packages.R")
 
 # Define the spatial extent and CRS
 min_lon = -125.0
@@ -66,7 +46,7 @@ grid_sf <- grid_sf %>%
 #   )
 # 
 # Output
-filepath_out <- paste0(path_int_grid, "/grid_latlong_0p1_degree.shp")
+filepath_out <- paste0(path_data_int, "/grid/grid_latlong_0p1_degree.shp")
 st_write(grid_sf, filepath_out, delete_dsn = T)
 
 

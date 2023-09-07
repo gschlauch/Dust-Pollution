@@ -3,6 +3,10 @@
 # Written by: Gary Schlauch
 #-------------------------------------------------------------------------------
 
+setwd("/Users/garyschlauch/Documents/github/Dust-Pollution")
+source("scripts/setup/00_load_settings.R")
+source("scripts/setup/00_load_packages.R")
+
 # QA functions -----------------------------------------------------------------
 
 # Check number of rows correct
@@ -62,7 +66,7 @@ qa_check_id_vars <- function(shp) {
 target_crs <- "USA_Contiguous_Albers_Equal_Area_Conic"
 
 # Process 2000 State boundaries --------------------------------------------------
-filepath <- paste0(path_raw_census, "/2000/state/US_state_2000.shp")
+filepath <- paste0(path_data_raw, "/census/2000/state/US_state_2000.shp")
 shp <- st_read(filepath) %>%
   mutate(statefp = str_sub(NHGISST, end = -2)) %>%
   dplyr::select(statefp, geometry) %>%
@@ -83,17 +87,17 @@ shp_agg <- st_union(shp)
 shp <- st_transform(shp, 4326)
 shp_agg <- st_transform(shp_agg, 4326)
 
-filepath_out <- paste0(path_int_census, "/2000/state/US_state_2000.shp")
+filepath_out <- paste0(path_data_int, "/census/2000/state/US_state_2000.shp")
 st_write(shp, filepath_out, delete_dsn = T)
 rm(filepath, shp, filepath_out)
 
-filepath_out <- paste0(path_int_census, "/2000/conus/US_conus_2000.shp")
+filepath_out <- paste0(path_data_int, "/census/2000/conus/US_conus_2000.shp")
 st_write(shp_agg, filepath_out, delete_dsn = T)
 rm(shp_agg, filepath_out)
 
 
 # Process 2010 State boundaries --------------------------------------------------
-filepath <- paste0(path_raw_census, "/2010/state/US_state_2010.shp")
+filepath <- paste0(path_data_raw, "/census/2010/state/US_state_2010.shp")
 shp <- st_read(filepath) %>%
   dplyr::select(STATEFP10, geometry) %>%
   dplyr::rename(statefp = STATEFP10) %>%
@@ -110,13 +114,13 @@ qa_check_id_vars(shp)
 
 shp <- st_transform(shp, 4326)
 
-filepath_out <- paste0(path_int_census, "/2010/state/US_state_2010.shp")
+filepath_out <- paste0(path_data_int, "/census/2010/state/US_state_2010.shp")
 st_write(shp, filepath_out, delete_dsn = T)
 rm(filepath, shp, filepath_out)
 
 # 
 # # Process 2000 PUMA boundaries --------------------------------------------------
-# filepath <- paste0(path_raw_census, "/2000/PUMA/US_puma_2000.shp")
+# filepath <- paste0(path_data_raw, "/census/2000/PUMA/US_puma_2000.shp")
 # shp <- st_read(filepath) %>%
 #   dplyr::select(STATEFP, PUMA, geometry) %>%
 #   arrange(STATEFP, PUMA)
@@ -135,13 +139,13 @@ rm(filepath, shp, filepath_out)
 # 
 # shp <- st_transform(shp, 4326)
 # 
-# filepath_out <- paste0(path_int_census, "/2000/puma/US_puma_2000.shp")
+# filepath_out <- paste0(path_data_int, "/census/2000/puma/US_puma_2000.shp")
 # st_write(shp, filepath_out, delete_dsn = T)
 # rm(filepath, shp, filepath_out)
 # 
 # 
 # # Process 2010 PUMA boundaries --------------------------------------------------
-# filepath <- paste0(path_raw_census, "/2010/PUMA/ipums_puma_2010.shp")
+# filepath <- paste0(path_data_raw, "/census/2010/PUMA/ipums_puma_2010.shp")
 # shp <- st_read(filepath) %>%
 #   dplyr::select(STATEFIP, PUMA, geometry) %>%
 #   dplyr::rename(STATEFP = STATEFIP) %>%
@@ -161,13 +165,13 @@ rm(filepath, shp, filepath_out)
 # 
 # shp <- st_transform(shp, 4326)
 # 
-# filepath_out <- paste0(path_int_census, "/2010/puma/US_puma_2010.shp")
+# filepath_out <- paste0(path_data_int, "/census/2010/puma/US_puma_2010.shp")
 # st_write(shp, filepath_out, delete_dsn = T)
 # rm(filepath, shp, filepath_out)
 # 
 
 # Process 2000 County boundaries --------------------------------------------------
-filepath <- paste0(path_raw_census, "/2000/County/US_county_2000.shp")
+filepath <- paste0(path_data_raw, "/census/2000/County/US_county_2000.shp")
 shp <- st_read(filepath) %>%
   dplyr::select(NHGISST, NHGISCTY, geometry) %>%
   dplyr::mutate(
@@ -190,13 +194,13 @@ if (n_distinct(shp$statefp) != 49) {
 
 shp <- st_transform(shp, 4326)
 
-filepath_out <- paste0(path_int_census, "/2000/county/US_county_2000.shp")
+filepath_out <- paste0(path_data_int, "/census/2000/county/US_county_2000.shp")
 st_write(shp, filepath_out, delete_dsn = T)
 rm(filepath, shp, filepath_out)
 
 
 # Process 2010 County boundaries --------------------------------------------------
-filepath <- paste0(path_raw_census, "/2010/County/US_county_2010.shp")
+filepath <- paste0(path_data_raw, "/census/2010/County/US_county_2010.shp")
 shp <- st_read(filepath) %>%
   dplyr::select(STATEFP10, COUNTYFP10, geometry) %>%
   dplyr::rename(statefp = STATEFP10, countyfp = COUNTYFP10) %>%
@@ -218,13 +222,13 @@ if (n_distinct(shp$statefp) != 49) {
 
 shp <- st_transform(shp, 4326)
 
-filepath_out <- paste0(path_int_census, "/2010/county/US_county_2010.shp")
+filepath_out <- paste0(path_data_int, "/census/2010/county/US_county_2010.shp")
 st_write(shp, filepath_out, delete_dsn = T)
 rm(filepath, shp, filepath_out)
 
 
 # Process 2000 Tract boundaries --------------------------------------------------
-filepath <- paste0(path_raw_census, "/2000/Tract/US_tract_2000.shp")
+filepath <- paste0(path_data_raw, "/census/2000/Tract/US_tract_2000.shp")
 shp <- st_read(filepath) %>%
   dplyr::mutate(
     statefp = str_sub(NHGISST, end = -2),
@@ -245,13 +249,13 @@ if (n_distinct(shp$statefp) != 49) {
 
 shp <- st_transform(shp, 4326)
 
-filepath_out <- paste0(path_int_census, "/2000/tract/US_tract_2000.shp")
+filepath_out <- paste0(path_data_int, "/census/2000/tract/US_tract_2000.shp")
 st_write(shp, filepath_out, delete_dsn = T)
 rm(filepath, shp, filepath_out)
 
 
 # Process 2010 Tract boundaries --------------------------------------------------
-filepath <- paste0(path_raw_census, "/2010/Tract/US_tract_2010.shp")
+filepath <- paste0(path_data_raw, "/census/2010/Tract/US_tract_2010.shp")
 shp <- st_read(filepath) %>%
   dplyr::select(STATEFP10, COUNTYFP10, TRACTCE10, geometry) %>%
   dplyr::rename(statefp = STATEFP10, countyfp = COUNTYFP10, tractfp = TRACTCE10) %>%
@@ -268,21 +272,21 @@ if (n_distinct(shp$statefp) != 49) {
 
 shp <- st_transform(shp, 4326)
 
-filepath_out <- paste0(path_int_census, "/2010/tract/US_tract_2010.shp")
+filepath_out <- paste0(path_data_int, "/census/2010/tract/US_tract_2010.shp")
 st_write(shp, filepath_out, delete_dsn = T)
 rm(filepath, shp, filepath_out)
 
 # Mapper --------------------------------------------------
 
-state2000 <- st_read(paste0(path_int_census, "/2000/state/US_state_2000.shp"))
-cnty2000 <- st_read(paste0(path_int_census, "/2000/county/US_county_2000.shp"))
-tract2000 <- st_read(paste0(path_int_census, "/2000/tract/US_tract_2000.shp"))
-puma2000 <- st_read(paste0(path_int_census, "/2000/puma/US_puma_2000.shp"))
+state2000 <- st_read(paste0(path_data_int, "/census/2000/state/US_state_2000.shp"))
+cnty2000 <- st_read(paste0(path_data_int, "/census/2000/county/US_county_2000.shp"))
+tract2000 <- st_read(paste0(path_data_int, "/census/2000/tract/US_tract_2000.shp"))
+puma2000 <- st_read(paste0(path_data_int, "/census/2000/puma/US_puma_2000.shp"))
 
-state2010 <- st_read(paste0(path_int_census, "/2010/state/US_state_2010.shp"))
-cnty2010 <- st_read(paste0(path_int_census, "/2010/county/US_county_2010.shp"))
-tract2010 <- st_read(paste0(path_int_census, "/2010/tract/US_tract_2010.shp"))
-puma2010 <- st_read(paste0(path_int_census, "/2010/puma/US_puma_2010.shp"))
+state2010 <- st_read(paste0(path_data_int, "/census/2010/state/US_state_2010.shp"))
+cnty2010 <- st_read(paste0(path_data_int, "/census/2010/county/US_county_2010.shp"))
+tract2010 <- st_read(paste0(path_data_int, "/census/2010/tract/US_tract_2010.shp"))
+puma2010 <- st_read(paste0(path_data_int, "/census/2010/puma/US_puma_2010.shp"))
 
 map <- ggplot() +
   geom_sf(
