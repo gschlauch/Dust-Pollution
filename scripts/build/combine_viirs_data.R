@@ -8,6 +8,7 @@
 setwd("/Users/garyschlauch/Documents/github/Dust-Pollution")
 source("scripts/setup/00_load_settings.R")
 source("scripts/setup/00_load_packages.R")
+source("scripts/setup/00_load_functions.R")
 
 # Functions --------------------------------------------------------------------
 
@@ -27,7 +28,7 @@ years <- as.character(year_start:year_end)
 
 filepaths <- c()
 for (year in years) {
-  dir <- paste0(path_int_viirs, "/", year)
+  dir <- paste0(path_data_int, "/viirs/", year)
   files <- list.files(dir, full.names = TRUE, pattern = ".csv")
   filepaths <- c(filepaths, files)
 }

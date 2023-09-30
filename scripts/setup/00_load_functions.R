@@ -1,20 +1,3 @@
-# R functions
-library(dplyr)
-library(sf)
-library(ggplot2)
-library(stringr)
-library(sp)
-library(raster)
-library(ncdf4)
-library(data.table)
-library(readr)
-library(tidyr)
-library(haven)
-library(exactextractr)
-library(plyr)
-library(rlang)
-
-# User-written functions -------------------------------------------------------
 
 # dataframe-to-dataframe merge function like Stata
 stata.merge <- function(x, y, by) {
@@ -27,7 +10,6 @@ stata.merge <- function(x, y, by) {
   return(df)
 }
 
-# Check if the rows of a dataframe are uniquely identified by a given set of variables
 check_df_unique_by <- function(df, ..., stop = T) {
   # inputs:
   # df: a dataframe
@@ -37,22 +19,19 @@ check_df_unique_by <- function(df, ..., stop = T) {
   #
   vars <- dplyr::quos(...)
   n <- df %>%
-    dplyr::group_by(!!!vars) %>%
-    dplyr::filter(n() > 1) %>%
-    dplyr::ungroup() %>%
+    dplyr::distinct(!!!vars) %>%
     nrow()
-
+  
   varnames <- rlang::quo_text(vars)
   varnames <- gsub("~", "", regmatches(varnames, gregexpr("~\\w+", varnames))[[1]])
   varnames <- paste(varnames, collapse = ", ")
-  if (n != 0) {
+  if (n != nrow(df)) {
     message <- paste0("The data are NOT uniquely identified by: ", varnames)
     if (stop == T) {
       stop(message)
     } else {
       print(message)
     }
-    
   } else {
     message <- paste0("The data are uniquely identified by: ", varnames)
     print(message)

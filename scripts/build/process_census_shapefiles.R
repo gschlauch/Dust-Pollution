@@ -31,9 +31,9 @@ qa_check_id_vars <- function(shp) {
   df <- as.data.frame(shp) %>% dplyr::select(-geometry)
 
   # Check names
-  if (!all(names(df) %in% c("statefp", "countyfp", "tractfp", "puma"))) {
-    stop("Check column names")
-  }
+  # if (!all(names(df) %in% c("statefp", "countyfp", "tractfp", "puma"))) {
+  #   stop("Check column names")
+  # }
 
   # Check all id_vars are strings
   sapply(df, is.character) %>% all()
@@ -61,7 +61,6 @@ qa_check_id_vars <- function(shp) {
     }
   }
 }
-
 
 target_crs <- "USA_Contiguous_Albers_Equal_Area_Conic"
 
@@ -173,12 +172,13 @@ rm(filepath, shp, filepath_out)
 # Process 2000 County boundaries --------------------------------------------------
 filepath <- paste0(path_data_raw, "/census/2000/County/US_county_2000.shp")
 shp <- st_read(filepath) %>%
-  dplyr::select(NHGISST, NHGISCTY, geometry) %>%
+  dplyr::select(NHGISST, NHGISNAM, NHGISCTY, geometry) %>%
   dplyr::mutate(
     statefp = str_sub(NHGISST, end = -2),
-    countyfp = str_sub(NHGISCTY, end = -2)
+    county = str_trim(str_to_lower(NHGISNAM)),
+    countyfp = str_sub(NHGISCTY, end = -2),
   ) %>%
-  dplyr::select(-c(NHGISST, NHGISCTY)) %>%
+  dplyr::select(-c(NHGISST, NHGISCTY, NHGISNAM)) %>%
   arrange(statefp, countyfp)
 
 target_num <- 3141 #https://www.census.gov/geographies/reference-files/time-series/geo/tallies.2000.html#list-tab-1626061381
@@ -202,8 +202,9 @@ rm(filepath, shp, filepath_out)
 # Process 2010 County boundaries --------------------------------------------------
 filepath <- paste0(path_data_raw, "/census/2010/County/US_county_2010.shp")
 shp <- st_read(filepath) %>%
-  dplyr::select(STATEFP10, COUNTYFP10, geometry) %>%
-  dplyr::rename(statefp = STATEFP10, countyfp = COUNTYFP10) %>%
+  dplyr::select(STATEFP10, NAME10, COUNTYFP10, geometry) %>%
+  dplyr::rename(statefp = STATEFP10, countyfp = COUNTYFP10, county = NAME10) %>%
+  mutate(county = str_trim(str_to_lower(county))) %>%
   arrange(statefp, countyfp)
 
 shp <- shp %>%
@@ -226,18 +227,20 @@ filepath_out <- paste0(path_data_int, "/census/2010/county/US_county_2010.shp")
 st_write(shp, filepath_out, delete_dsn = T)
 rm(filepath, shp, filepath_out)
 
+# Process 2020 County boundaries --------------------------------------------------
 
-# Process 2000 Tract boundaries --------------------------------------------------
-filepath <- paste0(path_data_raw, "/census/2000/Tract/US_tract_2000.shp")
+filepath <- paste0(path_data_raw, "/census/2020/county/US_county_2020.shp")
 shp <- st_read(filepath) %>%
-  dplyr::mutate(
-    statefp = str_sub(NHGISST, end = -2),
-    countyfp = str_sub(NHGISCTY, end = -2),
-    tractfp = str_sub(GISJOIN, -6, -1)
-  ) %>%
-  dplyr::select(statefp, countyfp, tractfp, geometry) %>%
-  arrange(statefp, countyfp, tractfp)
+  dplyr::select(STATEFP, COUNTYFP, NAME, geometry) %>%
+  dplyr::rename(statefp = STATEFP, countyfp = COUNTYFP, county = NAME) %>%
+  mutate(county = str_trim(str_to_lower(county))) %>%
+  arrange(statefp, countyfp)
 
+shp <- shp %>%
+  dplyr::filter(!(statefp %in% c("60", "64", "66", "68", "69", "70", "72", "74", "78")))
+
+target_num <- 3143 #https://www.census.gov/geographies/reference-files/time-series/geo/tallies.2010.html#list-tab-1626061381
+qa_check_nrows(shp, target_num = target_num, id_vars = c("statefp", "countyfp"))
 qa_check_crs(shp, target_crs)
 qa_check_id_vars(shp)
 
@@ -249,58 +252,85 @@ if (n_distinct(shp$statefp) != 49) {
 
 shp <- st_transform(shp, 4326)
 
-filepath_out <- paste0(path_data_int, "/census/2000/tract/US_tract_2000.shp")
+filepath_out <- paste0(path_data_int, "/census/2020/county/US_county_2020.shp")
 st_write(shp, filepath_out, delete_dsn = T)
 rm(filepath, shp, filepath_out)
 
-
-# Process 2010 Tract boundaries --------------------------------------------------
-filepath <- paste0(path_data_raw, "/census/2010/Tract/US_tract_2010.shp")
-shp <- st_read(filepath) %>%
-  dplyr::select(STATEFP10, COUNTYFP10, TRACTCE10, geometry) %>%
-  dplyr::rename(statefp = STATEFP10, countyfp = COUNTYFP10, tractfp = TRACTCE10) %>%
-  arrange(statefp, countyfp, tractfp)
-
-qa_check_crs(shp, target_crs)
-qa_check_id_vars(shp)
-
-shp <- shp %>%
-  dplyr::filter(!(statefp %in% c("02", "15", "60", "64", "66", "68", "69", "70", "72", "74", "78")))
-if (n_distinct(shp$statefp) != 49) {
-  stop("Check number of states")
-}
-
-shp <- st_transform(shp, 4326)
-
-filepath_out <- paste0(path_data_int, "/census/2010/tract/US_tract_2010.shp")
-st_write(shp, filepath_out, delete_dsn = T)
-rm(filepath, shp, filepath_out)
-
-# Mapper --------------------------------------------------
-
-state2000 <- st_read(paste0(path_data_int, "/census/2000/state/US_state_2000.shp"))
-cnty2000 <- st_read(paste0(path_data_int, "/census/2000/county/US_county_2000.shp"))
-tract2000 <- st_read(paste0(path_data_int, "/census/2000/tract/US_tract_2000.shp"))
-puma2000 <- st_read(paste0(path_data_int, "/census/2000/puma/US_puma_2000.shp"))
-
-state2010 <- st_read(paste0(path_data_int, "/census/2010/state/US_state_2010.shp"))
-cnty2010 <- st_read(paste0(path_data_int, "/census/2010/county/US_county_2010.shp"))
-tract2010 <- st_read(paste0(path_data_int, "/census/2010/tract/US_tract_2010.shp"))
-puma2010 <- st_read(paste0(path_data_int, "/census/2010/puma/US_puma_2010.shp"))
-
-map <- ggplot() +
-  geom_sf(
-    data = cnty2000,
-    color = "red",
-    lwd = 0.5
-  ) +
-  geom_sf(
-    data = tract2000,
-    lwd = 0.1,
-    alpha = 0
-  )
-
-file_out <- paste0("/users/garyschlauch/downloads/map.png")
-ggsave(file_out)
+# 
+# # Process 2000 Tract boundaries --------------------------------------------------
+# filepath <- paste0(path_data_raw, "/census/2000/Tract/US_tract_2000.shp")
+# shp <- st_read(filepath) %>%
+#   dplyr::mutate(
+#     statefp = str_sub(NHGISST, end = -2),
+#     countyfp = str_sub(NHGISCTY, end = -2),
+#     tractfp = str_sub(GISJOIN, -6, -1)
+#   ) %>%
+#   dplyr::select(statefp, countyfp, tractfp, geometry) %>%
+#   arrange(statefp, countyfp, tractfp)
+# 
+# qa_check_crs(shp, target_crs)
+# qa_check_id_vars(shp)
+# 
+# shp <- shp %>%
+#   dplyr::filter(!(statefp %in% c("02", "15", "60", "64", "66", "68", "69", "70", "72", "74", "78")))
+# if (n_distinct(shp$statefp) != 49) {
+#   stop("Check number of states")
+# }
+# 
+# shp <- st_transform(shp, 4326)
+# 
+# filepath_out <- paste0(path_data_int, "/census/2000/tract/US_tract_2000.shp")
+# st_write(shp, filepath_out, delete_dsn = T)
+# rm(filepath, shp, filepath_out)
+# 
+# 
+# # Process 2010 Tract boundaries --------------------------------------------------
+# filepath <- paste0(path_data_raw, "/census/2010/Tract/US_tract_2010.shp")
+# shp <- st_read(filepath) %>%
+#   dplyr::select(STATEFP10, COUNTYFP10, TRACTCE10, geometry) %>%
+#   dplyr::rename(statefp = STATEFP10, countyfp = COUNTYFP10, tractfp = TRACTCE10) %>%
+#   arrange(statefp, countyfp, tractfp)
+# 
+# qa_check_crs(shp, target_crs)
+# qa_check_id_vars(shp)
+# 
+# shp <- shp %>%
+#   dplyr::filter(!(statefp %in% c("02", "15", "60", "64", "66", "68", "69", "70", "72", "74", "78")))
+# if (n_distinct(shp$statefp) != 49) {
+#   stop("Check number of states")
+# }
+# 
+# shp <- st_transform(shp, 4326)
+# 
+# filepath_out <- paste0(path_data_int, "/census/2010/tract/US_tract_2010.shp")
+# st_write(shp, filepath_out, delete_dsn = T)
+# rm(filepath, shp, filepath_out)
+# 
+# # Mapper --------------------------------------------------
+# 
+# state2000 <- st_read(paste0(path_data_int, "/census/2000/state/US_state_2000.shp"))
+# cnty2000 <- st_read(paste0(path_data_int, "/census/2000/county/US_county_2000.shp"))
+# tract2000 <- st_read(paste0(path_data_int, "/census/2000/tract/US_tract_2000.shp"))
+# puma2000 <- st_read(paste0(path_data_int, "/census/2000/puma/US_puma_2000.shp"))
+# 
+# state2010 <- st_read(paste0(path_data_int, "/census/2010/state/US_state_2010.shp"))
+# cnty2010 <- st_read(paste0(path_data_int, "/census/2010/county/US_county_2010.shp"))
+# tract2010 <- st_read(paste0(path_data_int, "/census/2010/tract/US_tract_2010.shp"))
+# puma2010 <- st_read(paste0(path_data_int, "/census/2010/puma/US_puma_2010.shp"))
+# 
+# map <- ggplot() +
+#   geom_sf(
+#     data = cnty2000,
+#     color = "red",
+#     lwd = 0.5
+#   ) +
+#   geom_sf(
+#     data = tract2000,
+#     lwd = 0.1,
+#     alpha = 0
+#   )
+# 
+# file_out <- paste0("/users/garyschlauch/downloads/map.png")
+# ggsave(file_out)
 
 
