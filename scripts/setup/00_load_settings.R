@@ -1,6 +1,7 @@
 # Set R settings
 rm(list=ls())
 options(stringsAsFactors = F)
+options(scipen = 999)
 
 # Set to location of Box folder
 path_box <- "/Users/garyschlauch/Library/CloudStorage/Box-Box/Dust-Pollution"
