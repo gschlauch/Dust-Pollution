@@ -34,7 +34,7 @@ zone_files <- list.files(
 )
 
 # Loop through forecast zones
-for (i in 5:length(zone_files)) {# (i in 1:length(zone_files)) {
+for (i in 1:length(zone_files)) {
   
   print(paste0("File ", i, "/", length(zone_files)))
   
@@ -53,7 +53,7 @@ for (i in 5:length(zone_files)) {# (i in 1:length(zone_files)) {
   crs <- st_crs(zone_shp)[[1]]
   if (!is.na(crs)) {
     if (crs != "NAD83") {
-      stop("The CRS is not NAD83")
+      stop("The non-missing default CRS is not NAD83")
     }
   } else {
     zone_shp <- zone_shp %>% st_set_crs("NAD83")
@@ -65,11 +65,12 @@ for (i in 5:length(zone_files)) {# (i in 1:length(zone_files)) {
     dplyr::rename(zone_state = STATE, zone_fips = ZONE, zone_name = NAME) %>%
     mutate_at(c("zone_state", "zone_fips", "zone_name"), ~tidy_string(.)) %>%
     mutate(zone_state = str_to_upper(zone_state)) %>%
-    filter(!(zone_state %in% c("ak", "vi", "pr", "gu", "hi", "mp", "tt", "as"))) %>%
+    filter(!(zone_state %in% c("AK", "VI", "PR", "GU", "HI", "MP", "TT", "AS"))) %>%
     filter(!(is.na(zone_fips))) %>%
     mutate(zone_filename = zone_shp_filename) %>%
-    st_transform("WGS84") %>%
-    st_make_valid()
+    st_transform(5070) %>% # better to use a projection for this purpose
+    st_make_valid() %>%
+    distinct() # remove potential duplicate geometries
   
   # Union the geometries for zones that are listed twice. This is annoying since
   # st_union isn't working for some of the geometries. However, the ones it isn't
@@ -90,7 +91,7 @@ for (i in 5:length(zone_files)) {# (i in 1:length(zone_files)) {
     st_make_valid()
   zone_shp <- bind_rows(zone_shp_1, zone_shp_2)
   if (nrow(zone_shp) != n_distinct_zones) {
-    stop("I don't have the correct number of zones after doing the union")
+    stop("After doing the union, there isn't 1 row per zone")
   }
   
   # Loop through states
@@ -110,14 +111,7 @@ for (i in 5:length(zone_files)) {# (i in 1:length(zone_files)) {
     county_shp_state <- county_shp %>% 
       filter(stabv %in% get_neighboring_states(state))
     
-    # Get a list of county indices that intersect at all with each zone. For some
-    # annoying reason, I can't get one of the geometries to be valid for 
-    # "MN" in the file "z_01ap14.shp". to handle this case, I set sf_use_s2 to false
-    if (state == "MN" & zone_shp_filename == "z_01ap14.shp") {
-      zone_shp_state_bad <- zone_shp_state[96, ]
-      zone_shp_state <- zone_shp_state[-96, ]
-    }
-    
+    # Get a list of county indices that intersect at all with each zone. 
     intersections_list <- st_intersects(zone_shp_state, county_shp_state)
     
     # For each zone, get the polygon that is the intersection of zone-counties
@@ -126,37 +120,11 @@ for (i in 5:length(zone_files)) {# (i in 1:length(zone_files)) {
     )
     if (nrow(zone_shp_state) > 1) {
       for (k in 2:nrow(zone_shp_state)) {
-        
-        # These ones gives an error for whatever reason but it works when I use s2.
-        # I also get a warning if I do the intersection in latitude/longitude, so
-        # I transform to planar as well
-        bad_cases <- 
-          (k == 76 & state == "NY" & zone_shp_filename == "z_01de10.shp") |
-          (k == 94 & state == "NC" & zone_shp_filename == "z_01de10.shp")
-        if (bad_cases) {
-          sf_use_s2(FALSE)
-          intersections_shp_k <- st_intersection(
-            st_transform(zone_shp_state[k, ], 3857), 
-            st_transform(county_shp_state[intersections_list[[k]], ], 3857)
-          ) %>% st_transform(4326)
-          sf_use_s2(TRUE)
-        } else { # Do it normally for the rest
-          intersections_shp_k <- st_intersection(
-            zone_shp_state[k, ], county_shp_state[intersections_list[[k]], ]
-          )
-        }
+        intersections_shp_k <- st_intersection(
+          zone_shp_state[k, ], county_shp_state[intersections_list[[k]], ]
+        )
         intersections_shp <- bind_rows(intersections_shp, intersections_shp_k)
       }
-    }
-    
-    # Add in the "bad" geometries
-    # This one works if I project to a different CRS
-    if (state == "MN" & zone_shp_filename == "z_01ap14.shp") {
-      zone_shp_state_bad <- zone_shp_state_bad %>% st_transform(3857) %>% st_make_valid()
-      county_shp_state_bad <- county_shp_state %>% st_transform(3857)
-      intersections_shp_bad <- st_intersection(zone_shp_state_bad, county_shp_state_bad) %>%
-        st_transform(4326)
-      intersections_shp <- bind_rows(intersections_shp, intersections_shp_bad)
     }
     
     # Compute the percent of area overlap between the zones and counties. That is
@@ -182,12 +150,12 @@ for (i in 5:length(zone_files)) {# (i in 1:length(zone_files)) {
       mutate(pct_county_overlap = ifelse(pct_county_overlap > 100, 100, pct_county_overlap))
     
     # Check that the data are uniquely identified by zone-county
-    check_df_unique_by(intersections_df, zone_state, zone_fips, stfp, cntyfp)
+    check_df_unique_by(intersections_df, zone_state, zone_fips, zone_name, stfp, cntyfp)
     
     # Check that I have the correct number of unique zones comparing the shapefile
     # and final dataframe
     n_unique_intersections_df <- intersections_df %>%
-      dplyr::select(zone_state, zone_fips) %>%
+      dplyr::select(zone_state, zone_fips, zone_name) %>%
       n_distinct()
     if (n_unique_zone_shp_state != n_unique_intersections_df) {
       stop("The number of unique zones is incorrect in the final dataframe compared to the shapefile")
@@ -203,10 +171,11 @@ row.names(xwalk_df) <- NULL
 write_csv(xwalk_df, paste0(path_data_int, "/Crosswalks/xwalk_NWS_forecast_zones_to_counties.csv"))
 
 
-
+# 
 # # Quick maps to check the output
-# zone_filename_i <- "z_01ap08.shp"
-# distinct_zones <- xwalk_df %>% 
+# # good ex: MT, 043
+# zone_filename_i <- "z_01ap14.shp"
+# distinct_zones <- xwalk_df %>%
 #   filter(zone_filename == zone_filename_i) %>%
 #   distinct(zone_state, zone_fips)
 # rand <- sample(1:nrow(distinct_zones), 20, replace = F)
@@ -237,4 +206,4 @@ write_csv(xwalk_df, paste0(path_data_int, "/Crosswalks/xwalk_NWS_forecast_zones_
 #     )
 #   ggsave(paste0("/users/garyschlauch/downloads/map_", i, ".png"))
 # }
-
+# 

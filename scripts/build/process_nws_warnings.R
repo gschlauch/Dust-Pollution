@@ -38,9 +38,9 @@ for (year in years) {
   warning_shp <- st_read(filepath) %>%
     filter(PHENOM %in% c("DS", "DU")) %>%
     dplyr::select(WFO, ISSUED, EXPIRED, geometry) %>%
-    st_transform("WGS84") %>%
+    st_transform(5070) %>% # better to use a projection for this purpose
     st_make_valid() %>%
-    distinct()
+    distinct() # remove duplicates
   names(warning_shp) <- str_to_lower(names(warning_shp))
   
   # Union warnings that have multiple rows in the shapefile. I split this into 
@@ -92,7 +92,6 @@ for (year in years) {
     )
   
   print("Wrapping up")
-  # Convert to a dataframe
   intersections_df <- as.data.frame(intersections_shp) %>%
     dplyr::select(-c(cntyarea, intersection_area, geometry))
   
