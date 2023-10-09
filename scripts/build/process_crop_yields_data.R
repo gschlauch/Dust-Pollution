@@ -5,8 +5,8 @@ source("scripts/setup/00_load_functions.R")
 
 # Functions --------------------------------------------------------------------
 
-# Check that the State and county fips codes are only missing for "other" counties
-check_na_expected <- function(df) {
+# Check that the NASS State and county fips codes are only missing for "other" counties
+check_na_expected_nass <- function(df) {
   if (any(is.na(df$`State ANSI`)) == T) {
     stop("Some state codes are missing")
   }
@@ -17,8 +17,8 @@ check_na_expected <- function(df) {
   }
 }
 
-# Check the state and county codes and names uniquely identify observations
-check_names_match_codes <- function(df) {
+# Check the NASS state and county codes and names uniquely identify observations
+check_nass_names_match_codes <- function(df) {
   n_state_ansi <- distinct(df, state_ansi) %>% nrow()
   n_state_name <- distinct(df, state) %>% nrow()
   if (n_state_ansi != n_state_name) {
@@ -32,78 +32,13 @@ check_names_match_codes <- function(df) {
   }
 }
 
-# Tidy strings
-tidy_string <- function(x) {
-  x <- str_to_lower(str_squish(as.character(x)))
-}
-
-# # Create county mapping to clean names to match the census shapefile
-# county_mapping <- data.frame(
-#   original = c(
-#     "de kalb",
-#     "saint francis",
-#     "du page",
-#     "la salle",
-#     "st clair",
-#     "la porte",
-#     "o brien",
-#     "saint landry",
-#     "prince georges",
-#     "queen annes",
-#     "st marys",
-#     "st joseph",
-#     "de soto",
-#     "st charles",
-#     "ste genevieve",
-#     "st francois",
-#     "st louis",
-#     "dona ana",
-#     "st lawrence",
-#     "la moure",
-#     "leflore",
-#     "de witt",
-#     "chesapeake city",
-#     "suffolk city",
-#     "virginia beach city",
-#     "st croix"
-#   ),
-#   replacement = c(
-#     "dekalb",
-#     "st. francis",
-#     "dupage",
-#     "lasalle",
-#     "st. clair",
-#     "laporte",
-#     "o'brien",
-#     "st. landry",
-#     "prince george's",
-#     "queen anne's",
-#     "st. mary's",
-#     "st. joseph",
-#     "desoto",
-#     "st. charles",
-#     "ste. genevieve",
-#     "st. francois",
-#     "st. louis",
-#     "doña ana",
-#     "st. lawrence",
-#     "lamoure",
-#     "le flore",
-#     "dewitt",
-#     "chesapeake",
-#     "suffolk",
-#     "virginia beach",
-#     "st. croix"
-#   )
-# )
-
 # Process yields data
-process_yields_data <- function(directory, filename) {
-  # Load dataframe
+process_nass_yields_data <- function(directory, filename) {
+
   df <- read_csv(paste0(directory, "/", filename))
 
   # Check the NA values are where expected
-  check_na_expected(df)
+  check_na_expected_nass(df)
 
   # Clean the data
   df <- df %>%
@@ -122,12 +57,12 @@ process_yields_data <- function(directory, filename) {
     )
   names(df) <- tolower(names(df))
   check_df_unique_by(df, state_ansi, county_ansi, year)
-  check_names_match_codes(df)
+  check_nass_names_match_codes(df)
 
   return(df)
 }
 
-# Process yield data -----------------------------------------------------------
+# Process NASS yield data ------------------------------------------------------
 
 # Load the county dataframe
 county2020_df <- st_read(paste0(path_data_int, "/census/2020/county/US_county_2020.shp")) %>%
@@ -135,17 +70,17 @@ county2020_df <- st_read(paste0(path_data_int, "/census/2020/county/US_county_20
   dplyr::select(-geometry)
 
 # Initialize yield dataframe
-yield_df_all <- data.frame()
+nass_yield_df_all <- data.frame()
 
 # Combine yield and county census data
-filenames <- list.files(paste0(path_data_raw, "/usda/nass/yields"))
+filenames <- list.files(paste0(path_data_raw, "/crop_yields/nass"))
 for (filename in filenames) { # Loop through yield files
 
   print(filename)
 
   # Process yield data
-  yield_df <- process_yields_data(
-    directory = paste0(path_data_raw, "/usda/nass/yields/"),
+  yield_df <- process_nass_yields_data(
+    directory = paste0(path_data_raw, "/crop_yields/nass/"),
     filename = filename
   )
 
@@ -153,7 +88,7 @@ for (filename in filenames) { # Loop through yield files
   df <- stata.merge(
     county2020_df,
     yield_df,
-    by = c("statefp" = "state_ansi", "countyfp" = "county_ansi")
+    by = c("stfp" = "state_ansi", "cntyfp" = "county_ansi")
   )
 
   # Check that the merge was successful
@@ -166,13 +101,13 @@ for (filename in filenames) { # Loop through yield files
   }
 
   # Append to the yield data frame
-  yield_df_all <- bind_rows(yield_df_all, yield_df)
+  nass_yield_df_all <- bind_rows(nass_yield_df_all, df)
 
   print("Done! Onto the next file")
 }
 
 # Convert the yield values to numeric
-yield_df_all <- yield_df_all %>%
+nass_yield_df_all <- nass_yield_df_all %>%
   mutate(value = ifelse(value == "(d)", "",
     ifelse(str_detect(value, ","), str_replace_all(value, ",", ""),
       value
@@ -180,5 +115,104 @@ yield_df_all <- yield_df_all %>%
   )) %>%
   mutate(value = as.numeric(value))
 
+# # Inspect county name mis-matches to confirm merge is working since county fips codes
+# # can change over time
+# nass_yield_df_all %>%
+#   filter(cntyname != county) %>%
+#   distinct(cntyname, county) %>%
+#   View()
+
+# Reformat the yield variables
+nass_yield_df_all <- nass_yield_df_all %>%
+  mutate(
+    commodity = case_when(
+      data_item == "cotton, upland - yield, measured in lb / acre" ~ "cotton",
+      data_item == "corn, grain - yield, measured in bu / acre" ~ "corn",
+      data_item == "peanuts - yield, measured in lb / acre" ~ "peanuts",
+      data_item == "soybeans - yield, measured in bu / acre" ~ "soybeans",
+      data_item == "wheat, winter - yield, measured in bu / acre" ~ "winter_wheat",
+      data_item == "rice - yield, measured in lb / acre" ~ "rice",
+      data_item == "barley - yield, measured in bu / acre" ~ "barley",
+      data_item == "lentils - yield, measured in lb / acre" ~ "lentils",
+      data_item == "pecans, utilized, in shell - yield, measured in lb / acre" ~ "pecans",
+      data_item == "wheat, spring, durum - yield, measured in bu / acre" ~ "sprint_wheat_durum",
+      data_item == "wheat, spring, (excl durum) - yield, measured in bu / acre" ~ "sprint_wheat_excl_durum",
+      data_item == "chickpeas - yield, measured in lb / acre" ~ "chickpeas",
+      TRUE ~ NA
+      ),
+    yield_unit = case_when(
+      data_item == "cotton, upland - yield, measured in lb / acre" ~ "lb/acre",
+      data_item == "corn, grain - yield, measured in bu / acre" ~ "bu/acre",
+      data_item == "peanuts - yield, measured in lb / acre" ~ "lb/acre",
+      data_item == "soybeans - yield, measured in bu / acre" ~ "bu/acre",
+      data_item == "wheat, winter - yield, measured in bu / acre" ~ "bu/acre",
+      data_item == "rice - yield, measured in lb / acre" ~ "lb/acre",
+      data_item == "barley - yield, measured in bu / acre" ~ "bu/acre",
+      data_item == "lentils - yield, measured in lb / acre" ~ "lb/acre",
+      data_item == "pecans, utilized, in shell - yield, measured in lb / acre" ~ "lb/acre",
+      data_item == "wheat, spring, durum - yield, measured in bu / acre" ~ "bu/acre",
+      data_item == "wheat, spring, (excl durum) - yield, measured in bu / acre" ~ "bu/acre",
+      data_item == "chickpeas - yield, measured in lb / acre" ~ "lb/acre",
+      TRUE ~ NA
+    ),
+    source = "NASS"
+    ) %>%
+  dplyr::rename(yield = value) %>%
+  dplyr::select(-c(data_item, county, state))
+
+
+# Process CAC yield data -------------------------------------------------------
+
+# Process yield data
+cac_yield_df_all <- data.frame()
+
+crops <- list.files(paste0(path_data_raw, "/crop_yields/cac"))
+for (crop in crops) {
+  files <- list.files(paste0(path_data_raw, "/crop_yields/cac/", crop), full.names = T)
+  for (file in files) {
+    df <- read_csv(file) %>%
+      mutate_at(c("County", "Commodity_Name", "Unit"), ~ tidy_string(.)) %>%
+      mutate(
+        GEOID = str_pad(as.character(GEOID), width = 5, side = "left", pad = "0"),
+        stfp = str_sub(GEOID, 1, 2),
+        cntyfp = str_sub(GEOID, 3, 5)
+        ) %>%
+      dplyr::select(Year, stfp, cntyfp, County, Commodity_Name, Yield, Unit) %>%
+      dplyr::rename(yield_unit = Unit, cntyname = County, commodity = Commodity_Name)
+    names(df) <- tolower(names(df))
+    cac_yield_df_all <- bind_rows(cac_yield_df_all, df)
+  }
+}
+
+# Use the county names from the census shapefile
+cac_yield_df_all <- stata.merge(
+  cac_yield_df_all,
+  county2020_df,
+  by = c("stfp", "cntyfp")
+)
+if (any(cac_yield_df_all$merge == 1)) {
+  stop("Check merge with county shapefile")
+} else {
+  cac_yield_df_all <- cac_yield_df_all %>% filter(merge == 3) %>% dplyr::select(-merge)
+}
+cac_yield_df_all <- cac_yield_df_all %>% 
+  dplyr::select(-c(cntyname.x)) %>%
+  dplyr::rename(cntyname = cntyname.y) %>%
+  mutate(source = "CAC")
+
+# # Inspect county name mis-matches
+# cac_yield_df_all %>%
+#   filter(cntyname.x != cntyname.y) %>%
+#   distinct(cntyname.x, cntyname.y) %>%
+#   View()
+
+# Combine yields data and output -----------------------------------------------
+
+final_yield_df <- bind_rows(nass_yield_df_all, cac_yield_df_all)
+
 # Output
-write_csv(yield_df_all, paste0(path_data_int, "/usda/panel_crop_yields_2005to2022.csv"))
+write_csv(nass_yield_df_all, paste0(path_data_int, "/crops/panel_crop_yields.csv"))
+
+
+
+
