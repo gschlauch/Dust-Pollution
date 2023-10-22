@@ -208,10 +208,11 @@ cac_yield_df_all <- cac_yield_df_all %>%
 
 # Combine yields data and output -----------------------------------------------
 
-final_yield_df <- bind_rows(nass_yield_df_all, cac_yield_df_all)
+final_yield_df <- bind_rows(nass_yield_df_all, cac_yield_df_all) %>%
+  dplyr::rename(crop = commodity)
 
 # Output
-write_csv(nass_yield_df_all, paste0(path_data_int, "/crops/panel_crop_yields.csv"))
+write_csv(final_yield_df, paste0(path_data_int, "/crops/panel_crop_yields.csv"))
 
 
 

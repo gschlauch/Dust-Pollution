@@ -43,8 +43,8 @@ tidy_string <- function(x) {
   x <- str_to_lower(str_squish(as.character(x)))
 }
 
-# State fips code to state abbreviations
-get_state_abbreviation <- function(fips_code) {
+# Define a function to convert state fips to abbreviation
+get_state_abbreviation_from_fips <- function(fips_code) {
   case_when(
     fips_code == '01' ~ 'AL',
     fips_code == '02' ~ 'AK',
@@ -101,7 +101,73 @@ get_state_abbreviation <- function(fips_code) {
   )
 }
 
-# Write a function to return the neighboring states for each state
+# Define a function to convert state name to abbreviation
+get_state_abbreviation_from_name <- function(state_name) {
+  state_name <- toupper(state_name)  # Convert input to uppercase
+  state_abbrev <- case_when(
+    state_name == "ALABAMA" ~ "AL",
+    state_name == "ALASKA" ~ "AK",
+    state_name == "ARIZONA" ~ "AZ",
+    state_name == "ARKANSAS" ~ "AR",
+    state_name == "CALIFORNIA" ~ "CA",
+    state_name == "COLORADO" ~ "CO",
+    state_name == "CONNECTICUT" ~ "CT",
+    state_name == "DISTRICT OF COLUMBIA" ~ "DC",
+    state_name == "DELAWARE" ~ "DE",
+    state_name == "FLORIDA" ~ "FL",
+    state_name == "GEORGIA" ~ "GA",
+    state_name == "HAWAII" ~ "HI",
+    state_name == "IDAHO" ~ "ID",
+    state_name == "ILLINOIS" ~ "IL",
+    state_name == "INDIANA" ~ "IN",
+    state_name == "IOWA" ~ "IA",
+    state_name == "KANSAS" ~ "KS",
+    state_name == "KENTUCKY" ~ "KY",
+    state_name == "LOUISIANA" ~ "LA",
+    state_name == "MAINE" ~ "ME",
+    state_name == "MARYLAND" ~ "MD",
+    state_name == "MASSACHUSETTS" ~ "MA",
+    state_name == "MICHIGAN" ~ "MI",
+    state_name == "MINNESOTA" ~ "MN",
+    state_name == "MISSISSIPPI" ~ "MS",
+    state_name == "MISSOURI" ~ "MO",
+    state_name == "MONTANA" ~ "MT",
+    state_name == "NEBRASKA" ~ "NE",
+    state_name == "NEVADA" ~ "NV",
+    state_name == "NEW HAMPSHIRE" ~ "NH",
+    state_name == "NEW JERSEY" ~ "NJ",
+    state_name == "NEW MEXICO" ~ "NM",
+    state_name == "NEW YORK" ~ "NY",
+    state_name == "NORTH CAROLINA" ~ "NC",
+    state_name == "NORTH DAKOTA" ~ "ND",
+    state_name == "OHIO" ~ "OH",
+    state_name == "OKLAHOMA" ~ "OK",
+    state_name == "OREGON" ~ "OR",
+    state_name == "PENNSYLVANIA" ~ "PA",
+    state_name == "RHODE ISLAND" ~ "RI",
+    state_name == "SOUTH CAROLINA" ~ "SC",
+    state_name == "SOUTH DAKOTA" ~ "SD",
+    state_name == "TENNESSEE" ~ "TN",
+    state_name == "TEXAS" ~ "TX",
+    state_name == "UTAH" ~ "UT",
+    state_name == "VERMONT" ~ "VT",
+    state_name == "VIRGINIA" ~ "VA",
+    state_name == "WASHINGTON" ~ "WA",
+    state_name == "WEST VIRGINIA" ~ "WV",
+    state_name == "WISCONSIN" ~ "WI",
+    state_name == "WYOMING" ~ "WY",
+    state_name == "PUERTO RICO" ~ "PR",
+    state_name == "VIRGIN ISLANDS" ~ "VI",
+    state_name == "GUAM" ~ "GU",
+    state_name == "TRUST TERRITORIES" ~ "TT",
+    state_name == "AMERICAN SAMOA" ~ "TT",
+    state_name == "NORTHERN MARIANA ISLANDS" ~ "MP",
+    TRUE ~ NA_character_
+  )
+  return(state_abbrev)
+}
+
+# Define a function to get the neighboring states for each state (including the state itself)
 get_neighboring_states <- function(state_abbreviation) {
   
   neighboring_states <- list(
@@ -109,21 +175,21 @@ get_neighboring_states <- function(state_abbreviation) {
     AZ = c("CA", "NV", "UT", "NM", "CO"),
     AR = c("MO", "TN", "MS", "LA", "TX", "OK"),
     CA = c("OR", "NV", "AZ"),
-    CO = c("WY", "NE", "KS", "OK", "NM", "UT"),
+    CO = c("WY", "NE", "KS", "OK", "NM", "UT", "AZ"),
     CT = c("NY", "RI", "MA"),
     DC = c("MD", "VA"),
     DE = c("MD", "NJ", "PA"),
     FL = c("GA", "AL"),
     GA = c("SC", "NC", "TN", "AL", "FL"),
     ID = c("MT", "WY", "UT", "NV", "OR", "WA"),
-    IL = c("WI", "IA", "MO", "KY", "IN"),
+    IL = c("WI", "IA", "MO", "KY", "IN", "MI"),
     IN = c("MI", "IL", "KY", "OH"),
     IA = c("MN", "WI", "IL", "MO", "NE", "SD"),
     KS = c("NE", "MO", "OK", "CO"),
     KY = c("IN", "IL", "MO", "TN", "OH", "WV", "VA"),
     LA = c("AR", "MS", "TX"),
     ME = c("NH"),
-    MD = c("DE", "PA", "VA", "WV"),
+    MD = c("DE", "PA", "VA", "WV", "NJ"),
     MA = c("NY", "CT", "RI", "NH", "VT"),
     MI = c("WI", "IL", "IN", "OH"),
     MN = c("ND", "SD", "IA", "WI"),
@@ -133,7 +199,7 @@ get_neighboring_states <- function(state_abbreviation) {
     NE = c("SD", "WY", "CO", "KS", "MO", "IA"),
     NV = c("OR", "ID", "UT", "AZ", "CA"),
     NH = c("VT", "ME", "MA"),
-    NJ = c("DE", "PA", "NY"),
+    NJ = c("DE", "PA", "NY", "MD"),
     NM = c("AZ", "UT", "CO", "OK", "TX"),
     NY = c("VT", "MA", "CT", "NJ", "PA"),
     NC = c("VA", "TN", "GA", "SC"),

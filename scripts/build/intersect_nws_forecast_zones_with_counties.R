@@ -46,7 +46,7 @@ for (i in 1:length(zone_files)) {
   print("Prepping zone shapefile...")
   unzip(zone_files[i], exdir = path_temp)
   zone_shp_filename <- list.files(path_temp, pattern = ".shp")
-  zone_shp <- st_read(paste0(path_temp, "/", zone_shp_filename)) 
+  zone_shp <- st_read(paste0(path_temp, "/", zone_shp_filename))
   
   # Some of the shapefiles are missing a CRS. Since all of the other shapefiles
   # had NAD83 as the CRS, I guess that the missing CRS is NAD83
@@ -70,14 +70,16 @@ for (i in 1:length(zone_files)) {
     mutate(zone_filename = zone_shp_filename) %>%
     st_transform(5070) %>% # better to use a projection for this purpose
     st_make_valid() %>%
-    distinct() # remove potential duplicate geometries
+    dplyr::distinct() # remove potential duplicate geometries
   
   # Union the geometries for zones that are listed twice. This is annoying since
   # st_union isn't working for some of the geometries. However, the ones it isn't
   # working for are already unique geometries (ie, only have 1 row in zone_shp).
   # So I split the process into two parts here.
   print("Unioning geometries within state-fips-name")
-  n_distinct_zones <- nrow(distinct(as.data.frame(zone_shp), zone_state, zone_fips, zone_name))
+  n_distinct_zones <- as.data.frame(zone_shp) %>%
+    dplyr::distinct(zone_state, zone_fips, zone_name) %>%
+    nrow()
   zone_shp <- zone_shp %>% 
     group_by(zone_state, zone_fips, zone_name, zone_filename) %>%
     dplyr::mutate(obs = n()) %>%
@@ -105,7 +107,7 @@ for (i in 1:length(zone_files)) {
     # Get the number of unique zones to compare at the end of this loop
     n_unique_zone_shp_state <- as.data.frame(zone_shp_state) %>% 
       dplyr::select(zone_state, zone_fips, zone_name) %>%
-      n_distinct()
+      dplyr::n_distinct()
     
     # Filter the county shapefile to just that state and the surrounding states
     county_shp_state <- county_shp %>% 
@@ -156,7 +158,7 @@ for (i in 1:length(zone_files)) {
     # and final dataframe
     n_unique_intersections_df <- intersections_df %>%
       dplyr::select(zone_state, zone_fips, zone_name) %>%
-      n_distinct()
+      dplyr::n_distinct()
     if (n_unique_zone_shp_state != n_unique_intersections_df) {
       stop("The number of unique zones is incorrect in the final dataframe compared to the shapefile")
     }

@@ -25,36 +25,29 @@ for (year in years) {
   print(paste0("Year: ", year))
   
   print("Loading and prepping warnings shapefile")
-  filepath <- paste0(
-    path_data_raw, 
-    "/dust_storms/storm_warnings/", 
-    year, 
-    "_all/wwa_", 
-    year, 
-    "01010000_", 
-    year, 
-    "12312359.shp"
-  )
-  warning_shp <- st_read(filepath) %>%
+  filename <- paste0(year, "/wwa_",  year, "01010000_", year, "12312359.shp")
+  warning_shp <- st_read(paste0(path_data_raw, "/dust_storms/storm_warnings/", filename)) %>%
     filter(PHENOM %in% c("DS", "DU")) %>%
-    dplyr::select(WFO, ISSUED, EXPIRED, geometry) %>%
+    dplyr::select(WFO, INIT_ISS, EXPIRED, PHENOM, SIG, geometry) %>%
     st_transform(5070) %>% # better to use a projection for this purpose
     st_make_valid() %>%
-    distinct() # remove duplicates
+    dplyr::distinct() # remove duplicates
   names(warning_shp) <- str_to_lower(names(warning_shp))
   
   # Union warnings that have multiple rows in the shapefile. I split this into 
-  # two parts for speed and to make sure nothing goes weird with the warnings that
+  # two parts (only 1 row vs >1 row for a given warning) for speed and to make 
+  # sure nothing goes weird with the warnings that
   # only have 1 row when doing the union
-  n_distinct_warnings <- nrow(distinct(as.data.frame(warning_shp), wfo, issued, expired))
+  n_distinct_warnings <- as.data.frame(warning_shp) %>%
+    dplyr::distinct(wfo, init_iss, expired, phenom, sig) %>%
+    nrow()
   warning_shp <- warning_shp %>% 
-    group_by(wfo, issued, expired) %>%
+    group_by(wfo, init_iss, expired, phenom, sig) %>%
     dplyr::mutate(obs = n()) %>%
     ungroup()
   warning_shp_1 <- warning_shp %>% filter(obs == 1)
-  warning_shp_2 <- warning_shp %>% 
-    filter(obs > 1) %>%
-    group_by(wfo, issued, expired) %>%
+  warning_shp_2 <- warning_shp %>% filter(obs > 1) %>%
+    group_by(wfo, init_iss, expired, phenom, sig) %>%
     dplyr::summarize(geometry = st_union(geometry)) %>%
     ungroup() %>%
     st_make_valid()
@@ -104,7 +97,10 @@ for (year in years) {
     mutate(pct_county_overlap = ifelse(pct_county_overlap > 100, 100, pct_county_overlap))
   
   # Check that the data are uniquely identified by warning-county
-  check_df_unique_by(intersections_df, wfo, issued, expired, stfp, cntyfp)
+  check_df_unique_by(intersections_df, wfo, init_iss, expired, phenom, sig, stfp, cntyfp)
+  
+  # Add the filename
+  intersections_df <- intersections_df %>% mutate(warning_filename = filename)
   
   # Append to the final crosswalk
   xwalk_df <- bind_rows(xwalk_df, intersections_df)
@@ -114,12 +110,27 @@ for (year in years) {
 row.names(xwalk_df) <- NULL
 
 # Create R date-time variables (all times are already in UTC)
-xwalk_df <- xwalk_df %>%
+xwalk_df_final <- xwalk_df %>%
   mutate(
-    warning_start_date = ymd(str_sub(issued, 1, 8)),
-    warning_start_datetime = ymd_hm(issued),
+    warning_start_date = ymd(str_sub(init_iss, 1, 8)),
+    warning_start_datetime = ymd_hm(init_iss),
     warning_end_date = ymd(str_sub(expired, 1, 8)),
     warning_end_datetime = ymd_hm(expired)
-  )
+  ) %>%
+  dplyr::select(-c(init_iss, expired, obs))
 
-write_csv(xwalk_df, paste0(path_data_int, "/Dust_storms/NWS_dust_storm_warnings_cleaned.csv"))
+# Drop possible duplicates for a given county-warning within and across files. 
+# This can occur when two WFOs issue a warning for different parts of a county. 
+# In these cases, I choose the larger county overlap area. I don't care about which
+# WFO issued the warning
+xwalk_df_final <- xwalk_df_final %>%
+  dplyr::select(-c(wfo, warning_filename)) %>%
+  group_by(
+    stfp, cntyfp, warning_start_datetime, warning_end_datetime, phenom, sig
+  ) %>%
+  arrange(desc(pct_county_overlap)) %>%
+  filter(row_number() == 1) %>%
+  ungroup()
+
+# Output
+write_csv(xwalk_df_final, paste0(path_data_int, "/Dust_storms/NWS_dust_storm_warnings_cleaned.csv"))

@@ -56,7 +56,7 @@ shp <- st_read(filepath) %>%
   dplyr::rename(stfp = STATEFP, cntyfp = COUNTYFP, cntyname = NAME) %>%
   mutate(
     cntyfp = str_trim(str_to_lower(cntyfp)),
-    stabv = get_state_abbreviation(stfp),
+    stabv = get_state_abbreviation_from_fips(stfp),
     cntyname = str_trim(str_to_lower(cntyname))
     ) %>%
   arrange(stfp, cntyfp) %>%
