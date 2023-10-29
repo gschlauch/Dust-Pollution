@@ -170,6 +170,12 @@ for (i in 1:length(zone_files)) {
 }
 
 row.names(xwalk_df) <- NULL
+
+# Remove duplicates. This can occur since, for each state that I loop through,
+# I also include its neighboring states.
+xwalk_df <- xwalk_df %>% dplyr::distinct()
+
+# Output
 write_csv(xwalk_df, paste0(path_data_int, "/Crosswalks/xwalk_NWS_forecast_zones_to_counties.csv"))
 
 
