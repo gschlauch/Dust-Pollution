@@ -21,10 +21,9 @@ url = "https://www.epa.gov/outdoor-air-quality-data/download-daily-data"
 
 # List of pollutants
 pollutants = ["PM2.5", "PM10"]
-pollutants = ["PM10"]
 
 # List of years
-years = [str(year) for year in range(2010, 2012)]
+years = [str(year) for year in range(2000, 2005)]
 
 # List of states to skip
 states_to_skip = ["Alaska", "Hawaii", "Virgin Islands", "Guam", "Puerto Rico"]
@@ -34,7 +33,7 @@ states_to_skip = ["Alaska", "Hawaii", "Virgin Islands", "Guam", "Puerto Rico"]
 for pollutant in pollutants:
     
     pollutant_name = pollutant.replace(".", "")
-    destination_dir = f"/Users/garyschlauch/Library/CloudStorage/Box-Box/Dust-Pollution/data/raw/epa/mass/{pollutant_name}/daily"
+    destination_dir = f"/Users/garyschlauch/Library/CloudStorage/Box-Box/Dust-Pollution/data/raw/pollution/epa/concentrations/{pollutant_name}/daily"
     
     # Navigate to the URL
     driver.get(url)
