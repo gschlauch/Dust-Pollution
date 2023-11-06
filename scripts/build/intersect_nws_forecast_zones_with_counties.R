@@ -24,7 +24,7 @@ county_shp <- st_read(paste0(path_data_int, "/census/2020/county/US_county_2020.
   dplyr::select(-cntyname)
 
 # Initialize a zone-to-county 1:m crosswalk. This will contain all zone files
-# and is updated in the for loop below
+# and is updated in the forloop below
 xwalk_df <- data.frame()
 
 # Get forecast zone files
@@ -143,7 +143,8 @@ for (i in 1:length(zone_files)) {
       dplyr::select(zone_state, zone_fips, zone_name, zone_filename, stabv, 
                     stfp, cntyfp, pct_county_overlap)
     
-    # Check that pct_county_overlap is between 0 and 1
+    # Check that pct_county_overlap is between 0 and 100. If it is slightly over
+    # 100, set it to 100
     values <- intersections_df$pct_county_overlap
     if (any(is.na(values)) | any(values < 0) | any(values > 100.1)) {
       stop("pct_county_overlap is not between 0 and 100 or is missing")

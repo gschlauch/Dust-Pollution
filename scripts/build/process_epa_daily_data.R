@@ -10,32 +10,6 @@ source("scripts/setup/00_load_functions.R")
 
 # Functions --------------------------------------------------------------------
 
-# Clean a single PM10 file
-clean_pm10_data <- function(df) {
-  df <- df %>%
-    dplyr::select(`Site ID`, STATE, SITE_LATITUDE, SITE_LONGITUDE, POC, Date, `Daily Mean PM10 Concentration`) %>%
-    dplyr::rename(
-      date = Date, site_id = `Site ID`, poc = POC, pm10_mass = `Daily Mean PM10 Concentration`,
-      site_lat = SITE_LATITUDE, site_lon = SITE_LONGITUDE, state = STATE
-    ) %>%
-    mutate(date = lubridate::mdy(date)) %>%
-    mutate_at(c("site_id", "poc"), as.integer)
-  return(df)
-}
-
-# Clean a single PM 2.5 file
-clean_pm25_data <- function(df) {
-  df <- df %>%
-    dplyr::select(`Site ID`, STATE, SITE_LATITUDE, SITE_LONGITUDE, POC, Date, `Daily Mean PM2.5 Concentration`) %>%
-    dplyr::rename(
-      date = Date, site_id = `Site ID`, poc = POC, pm25_mass = `Daily Mean PM2.5 Concentration`,
-      site_lat = SITE_LATITUDE, site_lon = SITE_LONGITUDE, state = STATE
-    ) %>%
-    mutate(date = lubridate::mdy(date)) %>%
-    mutate_at(c("site_id", "poc"), as.integer)
-  return(df)
-}
-
 # Check that there are no NA values in the PM concentrations
 qa_all_pm_nonmissing <- function(df, pm_varname) {
   # pm_varname (str)
@@ -86,72 +60,95 @@ qa_compare_df_filename <- function(df, filename) {
 
 # Append the PM10 daily data ---------------------------------------------------
 
-filepath_base <- paste0(path_data_raw, "/epa/mass/pm10/daily")
+filepath_base <- paste0(path_data_raw, "/pollution/epa/concentrations/pm10/daily")
 files <- list.files(filepath_base, pattern = "^PM10_daily_.*\\.csv$")
-
-# Initialize dataframe to store results
-df_pm10 <- read_csv(paste0(filepath_base, "/", files[1])) %>%
-  clean_pm10_data()
-
-# Loop through the rest of the files
-n <- length(files)
-for (i in 2:n) {
-  print("----------------------------------------------")
-  print(i)
-  df <- read_csv(paste0(filepath_base, "/", files[i])) %>%
-    clean_pm10_data()
-  qa_compare_df_filename(df, files[i])
+df_pm10 <- data.frame()
+for (file in files) {
+  df <- read_csv(
+    paste0(filepath_base, "/", file),
+    col_select = c(
+      `Site ID`, 
+      STATE, 
+      SITE_LATITUDE, 
+      SITE_LONGITUDE, 
+      POC, 
+      Date, 
+      `Daily Mean PM10 Concentration`
+      )
+    ) %>%
+    mutate_at(c("Site ID", "POC"), as.character)
+  qa_compare_df_filename(df, file)
   df_pm10 <- bind_rows(df_pm10, df)
 }
 rm(df)
+
+df_pm10 <- df_pm10 %>%
+  dplyr::rename(
+    date = Date, site_id = `Site ID`, poc = POC, pm10_mass = `Daily Mean PM10 Concentration`,
+    site_lat = SITE_LATITUDE, site_lon = SITE_LONGITUDE, state = STATE
+  ) %>%
+  mutate(date = lubridate::mdy(date)) %>%
+  mutate_at(c("site_id", "poc"), as.numeric)
 
 # Run QA functions
 check_df_unique_by(df_pm10, site_id, poc, date)
 qa_all_pm_nonmissing(df_pm10, "pm10_mass")
 qa_stable_coords(df_pm10)
 
-# Average the results across monitors for each station-day
+# Average the daily observations from monitors at a station location
 df_pm10 <- df_pm10 %>%
   group_by(site_id, state, site_lat, site_lon, date) %>%
   dplyr::summarize(pm10_mass = mean(pm10_mass, na.rm = T)) %>%
   ungroup()
 
-rm(df, filepath_base, files, i, n)
+rm(df, filepath_base, files)
 
 # Append the PM2.5 daily data --------------------------------------------------
 
-filepath_base <- paste0(path_data_raw, "/epa/mass/pm25/daily")
+filepath_base <- paste0(path_data_raw, "/pollution/epa/concentrations/pm25/daily")
 files <- list.files(filepath_base, pattern = "^PM25_daily_.*\\.csv$")
-
-# Initialize dataframe to store results
-df_pm25 <- read_csv(paste0(filepath_base, "/", files[1])) %>%
-  clean_pm25_data()
-
-# Loop through the rest of the files
-n <- length(files)
-for (i in 2:n) {
-  print("----------------------------------------------")
-  print(i)
-  df <- read_csv(paste0(filepath_base, "/", files[i])) %>%
-    clean_pm25_data()
-  qa_compare_df_filename(df, files[i])
+df_pm25 <- data.frame()
+for (file in files) {
+  df <- read_csv(
+    paste0(filepath_base, "/", file),
+    col_select = c(
+      `Site ID`, 
+      STATE, 
+      SITE_LATITUDE, 
+      SITE_LONGITUDE, 
+      POC, 
+      Date, 
+      `Daily Mean PM2.5 Concentration`
+    )
+  ) %>%
+    mutate_at(c("Site ID", "POC"), as.character)
+  qa_compare_df_filename(df, file)
   df_pm25 <- bind_rows(df_pm25, df)
 }
+rm(df)
+
+df_pm25 <- df_pm25 %>%
+  dplyr::rename(
+    date = Date, site_id = `Site ID`, poc = POC, pm25_mass = `Daily Mean PM2.5 Concentration`,
+    site_lat = SITE_LATITUDE, site_lon = SITE_LONGITUDE, state = STATE
+  ) %>%
+  mutate(date = lubridate::mdy(date)) %>%
+  mutate_at(c("site_id", "poc"), as.numeric)
 
 # Run QA functions
 check_df_unique_by(df_pm25, site_id, poc, date)
 qa_all_pm_nonmissing(df_pm25, "pm25_mass")
 qa_stable_coords(df_pm25)
 
-# Average the results across monitors for each station-day
+# Average the daily observations from monitors at a station location
 df_pm25 <- df_pm25 %>%
   group_by(site_id, state, site_lat, site_lon, date) %>%
   dplyr::summarize(pm25_mass = mean(pm25_mass, na.rm = T)) %>%
   ungroup()
 
-rm(df, filepath_base, files, i, n)
+rm(df, filepath_base, files)
 
-# Combine the two panels -------------------------------------------------------
+# Combine the daily pollution data into a single daily panel --------------------
 
 # Check that the site lat/lons are the same across the two panels
 df <- rbind.fill(df_pm10, df_pm25)
@@ -163,7 +160,7 @@ df_combined <- full_join(df_pm10, df_pm25, by = c("site_id", "state", "site_lat"
 rm(df_pm10, df_pm25)
 
 # Output site-day panel
-write_csv(df_combined, paste0(path_data_int, "/epa/panel_pollution_by_site_day_pollutant.csv"))
+write_csv(df_combined, paste0(path_data_int, "/pollution/panel_pollution_by_site_day_pollutant_EPA.csv"))
 
 # Get the number of observations by site-year-pollutant ------------------------
 
@@ -189,8 +186,8 @@ df_obs <- full_join(df_pm10_obs, df_pm25_obs, by = c("site_id", "year")) %>%
   )
 
 # Make a balanced panel
-start_year <- 2012
-end_year <- 2022
+start_year <- min(df_combined$year)
+end_year <- max(df_combined$year)
 n_years <- (end_year - start_year) + 1
 
 df_obs_balanced <- df_obs %>%
@@ -204,28 +201,5 @@ df_obs_balanced <- left_join(df_obs_balanced, df_obs, by = c("site_id", "year"))
 df_obs_balanced <- df_obs_balanced %>%
   mutate_at(c("n_obs_by_site_yr_pm10", "n_obs_by_site_yr_pm25"), ~ ifelse(is.na(.), 0, .))
 
-write_csv(df_obs_balanced, paste0(path_data_int, "/epa/panel_nobs_by_site_year_pollutant.csv"))
+write_csv(df_obs_balanced, paste0(path_data_int, "/pollution/panel_nobs_by_site_year_pollutant_EPA.csv"))
 rm(df_obs_balanced, df_obs, df_pm10_obs, df_pm25_obs)
-
-# Create a crosswalk of EPA stations to 0.1 degree grid cell numbers ----------
-
-# Make a spatial dataframe using the EPA lat/lons
-shp_epa <- df_combined %>%
-  dplyr::distinct(site_id, site_lat, site_lon) %>%
-  st_as_sf(coords = c("site_lon", "site_lat"), crs = 4326)
-
-# Load the 0.1 degree grid cell spatial dataframe
-shp_grid <- st_read(paste0(path_data_int, "/grid/grid_latlong_0p1_degree.shp"))
-
-# Spatially intersect the EPA station lat/lons with the grid cells
-df_xwalk <- st_join(shp_epa, shp_grid) %>%
-  dplyr::rename(grid_id_0p1latlon = ID) %>%
-  as.data.frame() %>%
-  dplyr::select(-geometry)
-
-# Check that there is only 1 grid cell per site 
-# (note that there can be more than 1 site per grid cell)
-check_df_unique_by(df_xwalk, site_id)
-
-write_csv(df_xwalk, paste0(path_data_int, "/xwalks/xwalk_EPAstation_to_GridID.csv"))
-

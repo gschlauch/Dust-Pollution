@@ -112,9 +112,7 @@ row.names(xwalk_df) <- NULL
 # Create R date-time variables (all times are already in UTC)
 xwalk_df_final <- xwalk_df %>%
   mutate(
-    warning_start_date = ymd(str_sub(init_iss, 1, 8)),
     warning_start_datetime = ymd_hm(init_iss),
-    warning_end_date = ymd(str_sub(expired, 1, 8)),
     warning_end_datetime = ymd_hm(expired)
   ) %>%
   dplyr::select(-c(init_iss, expired, obs))
