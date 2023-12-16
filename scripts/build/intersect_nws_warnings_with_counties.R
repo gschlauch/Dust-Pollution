@@ -11,7 +11,7 @@ source("scripts/setup/00_load_functions.R")
 # Intersect warnings with counties ---------------------------------------------
 
 # Load the county shapefile
-county_shp <- st_read(paste0(path_data_int, "/census/2020/county/US_county_2020.shp")) %>%
+county_shp <- st_read(paste0(path_data_int, "/shapefiles/census/2010/county/US_county_2010.shp")) %>%
   dplyr::select(-cntyname)
 
 # Initialize a warning-to-county 1:m crosswalk. This will contain all warning files
@@ -19,20 +19,21 @@ county_shp <- st_read(paste0(path_data_int, "/census/2020/county/US_county_2020.
 xwalk_df <- data.frame()
 
 # Loop through storm warning files
-years <- as.character(2005:2022)
+years <- as.character(2006:2022)
 for (year in years) {
   
   print(paste0("Year: ", year))
   
   print("Loading and prepping warnings shapefile")
   filename <- paste0(year, "/wwa_",  year, "01010000_", year, "12312359.shp")
-  warning_shp <- st_read(paste0(path_data_raw, "/dust_storms/storm_warnings/", filename)) %>%
-    filter(PHENOM %in% c("DS", "DU")) %>%
+  warning_shp <- st_read(paste0(path_data_raw, "/dust_storms/NWS/storm_warnings/", filename)) %>%
+    filter(PHENOM == "DS", SIG == "W") %>% #DU
     dplyr::select(WFO, INIT_ISS, EXPIRED, PHENOM, SIG, geometry) %>%
     st_transform(5070) %>% # better to use a projection for this purpose
     st_make_valid() %>%
     dplyr::distinct() # remove duplicates
   names(warning_shp) <- str_to_lower(names(warning_shp))
+  print(nrow(warning_shp))
   
   # Union warnings that have multiple rows in the shapefile. I split this into 
   # two parts (only 1 row vs >1 row for a given warning) for speed and to make 
@@ -132,3 +133,5 @@ xwalk_df_final <- xwalk_df_final %>%
 
 # Output
 write_csv(xwalk_df_final, paste0(path_data_int, "/Dust_storms/NWS_dust_storm_warnings_cleaned.csv"))
+
+
