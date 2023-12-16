@@ -3,12 +3,6 @@ source("scripts/setup/00_load_settings.R")
 source("scripts/setup/00_load_packages.R")
 source("scripts/setup/00_load_functions.R")
 
-# Set the pct_county_overlap threshold, which specifies what percent of a county
-# needs to be covered by a given forecast zone boundary for that forecast zone to
-# be assigned to that county. Any county-forecast zone matches
-# with an overlap less than pct_overlap_threshold are not included
-pct_overlap_threshold <- 1
-
 # Function to adjust timezones
 adjust_timezone <- function(tz_str) {
   case_when(
@@ -24,7 +18,7 @@ adjust_timezone <- function(tz_str) {
 # Process the dust storm details data
 
 # Append the raw storm details data
-dirpath <- paste0(path_data_raw, "/dust_storms/storm_details")
+dirpath <- paste0(path_data_raw, "/dust_storms/NWS/storm_details")
 files <- list.files(dirpath, pattern = ".csv$")
 storm_details_df <- data.frame()
 for (i in 1:length(files)) {
@@ -32,7 +26,7 @@ for (i in 1:length(files)) {
   df <- read_csv(
     filename,
     col_select = c(
-      EPISODE_ID, EVENT_ID, EVENT_TYPE, STATE, CZ_TYPE, CZ_FIPS, CZ_NAME,
+      EPISODE_ID, EVENT_ID, EVENT_TYPE, STATE, CZ_TYPE, CZ_FIPS, CZ_NAME, WFO,
       BEGIN_DATE_TIME, END_DATE_TIME, CZ_TIMEZONE
     )
   )
@@ -57,30 +51,15 @@ storm_details_df <- storm_details_df %>%
     cz_fips = str_pad(as.character(cz_fips), width = 3, side = "left", pad = "0"),
     cz_name = tidy_string(cz_name),
     cz_timezone = adjust_timezone(cz_timezone),
-    storm_start_date = dmy(str_sub(begin_date_time, 1, 9)),
-    storm_end_date = dmy(str_sub(end_date_time, 1, 9)),
-    storm_start_time = hms(str_sub(begin_date_time, 11, 18)),
-    storm_end_time = hms(str_sub(end_date_time, 11, 18)),
+    storm_start_date_local = dmy(str_sub(begin_date_time, 1, 9)),
+    storm_end_date_local = dmy(str_sub(end_date_time, 1, 9)),
+    # storm_start_time_local = hms(str_sub(begin_date_time, 11, 18)),
+    # storm_end_time_local = hms(str_sub(end_date_time, 11, 18)),
+    storm_start_datetime = dmy_hms(begin_date_time),
+    storm_end_datetime = dmy_hms(end_date_time)
   ) %>%
   filter(!(cz_state %in% c("AK", "VI", "PR", "GU", "HI", "MP", "TT", "AS"))) %>%
-  dplyr::select(-c(state, event_type)) %>%
-  dplyr::select(episode_id, event_id, cz_state, cz_fips, cz_name, cz_timezone, cz_type, 
-                storm_start_date, storm_end_date, storm_start_time, storm_end_time)
-
-
-
-
-
-
-storm_details_df <- storm_details_df %>%
-  filter(year(storm_start_date) >= 2000)
-
-
-
-
-
-
-
+  dplyr::select(-c(state, event_type, begin_date_time, end_date_time))
 
 # Get states (and their neighboring states) with at least one dust storm
 states_and_nbrs_with_storms <- ""
@@ -91,7 +70,7 @@ for (state in states_with_storms$cz_state) {
 }
 states_and_nbrs_with_storms <- unique(states_and_nbrs_with_storms[-1])
 
-# Remove the three storms that have a county, not a zone. I deal with these later
+# Remove the handful of storms that have a county, not a zone. I deal with these later
 storm_details_df_counties_not_zones <- storm_details_df %>%
   filter(cz_type != "Z")
 storm_details_df <- storm_details_df %>%
@@ -103,20 +82,19 @@ storm_details_df <- storm_details_df %>%
 storm_details_df <- storm_details_df %>%
   dplyr::mutate(
     zone_name = case_when(
+      #### names look extremely similar and the fips match
       zone_name == "marble canyon and glen canyon" ~ "marble and glen canyons",
       zone_name == "northeast plateaus and mesas from highway 264 north" ~ "northeast plateaus and mesas hwy 264 northward",
       zone_name == "northeast plateaus and mesas south of highway 264" ~ "northeast plateaus and mesas south of hwy 264",
       zone_name == "tohono o odham nation" ~ "tohono oodham nation",
-      zone_name == "tucson metro area" ~ "tucson metro area including tucson/green valley/marana/vail",
-      zone_name == "c maricopa" ~ "greater phoenix area",
       zone_name == "sw yuma" ~ "yuma/martinez lake and vicinity",
       zone_name == "nw pinal" ~ "northwest and north central pinal county",
+      zone_name == "tucson metro area" ~ "tucson metro area including tucson/green valley/marana/vail",
       zone_name == "south central pinal county" ~ "south central pinal county including eloy/picacho peak state park",
       zone_name == "southeast pinal county including kearny/mammoth/oracle" ~ "southeast pinal county",
       zone_name == "eastern cochise county below 5000 feet" ~ "eastern cochise county below 5000 feet including douglas/willcox",
       zone_name == "lower colorado river valley az" ~ "lower colorado river valley ca",
       zone_name == "riverside county eastern deserts" ~ "riverside county/eastern deserts",
-      zone_name == "imperial county except the lower colorado river valley" ~ "imperial county",
       zone_name == "w central s.j. valley" ~ "west-central san joaquin valley",
       zone_name == "e central s.j. valley" ~ "east-central san joaquin valley",
       zone_name == "sw s.j. valley" ~ "southwestern san joaquin valley",
@@ -146,38 +124,81 @@ storm_details_df <- storm_details_df %>%
       zone_name == "grand ronde valley" ~ "grande ronde valley",
       zone_name == "van horn & hwy 54 corridor" ~ "van horn and highway 54 corridor",
       zone_name == "guadalupe mountains of culberson county" ~ "guadalupe mountains",
-      zone_name == "southern wasatch front/lehi/provo/nephi" ~ "southern wasatch front",
       zone_name == "e kittitas" ~ "kittitas valley",
       zone_name == "e yakima" ~ "yakima valley",
       zone_name == "southeast pinal county including kearny/mammoth/oracle" ~ "southeast pinal county",
-      zone_name == "c pima" ~ "tohono oodham nation",
-      zone_name == "e pima" ~ "tohono oodham nation",
       zone_name == "albuquerque metro area" ~ "middle rio grande valley/albuquerque metro area",
       zone_name == "s washoe t x se & x sw/storey/e carson city/c&e douglas/nw lyon" ~ "greater reno-carson city-minden area",
       zone_name == "pershing/churchill/x se washoe/nc&ne lyon" ~ "western nevada basin and range including pyramid lake",
       zone_name == "emery t nw x ne/c e wayne/p sc carbon" ~ "san rafael swell",
-      zone_name == "benton/franklin/walla walla t se/e klickitat" ~ "lower columbia basin",
       zone_name == "blue mountain foothills" ~ "foothills of the blue mountains",
       zone_name == "n columbia/se walla walla t x se" ~ "foothills of the blue mountains",
-      zone_name == "central deserts" & zone_fips == "028" ~ "northwest and north central pinal county",
-      #
-      zone_name == "sw sj valley" & zone_fips == "091" ~ "southwestern san joaquin valley",
-      zone_name == "san diego county coasts" & zone_fips == "043" ~ "san diego county coastal areas",
-      zone_name == "c san diego" & zone_fips == "062" ~ "san diego county deserts",
-      zone_name == "e central sj valley" & zone_fips == "e central sj valley" ~ "east-central san joaquin valley",
-      zone_name == "northwest plateau / san juan except x sw and se / nc mckinley" & zone_fips == "001" ~ "northwest plateau",
-      zone_name == "westcentral mountains / mckinley except nc and ne / cibola except x e / n catron / x sw sanduval / x nw bernalillo / x nw socorro" & zone_fips == "008" ~ "west central mountains",
       zone_name == "lower rio grande valley / part of c and e socorro" & zone_fips == "015" ~ "lower rio grande valley",
       zone_name == "n elko cnty" & zone_fips == "031" ~ "northern elko county",
       zone_name == "x e elko" & zone_fips == "033" ~ "extreme eastern elko county",
       zone_name == "grand flat and arches" & zone_fips == "027" ~ "arches/grand flat",
       zone_name == "lower garfield & asotin" & zone_fips == "032" ~ "lower garfield and asotin counties",
       zone_name == "e central sj valley" & zone_fips == "090" ~ "east-central san joaquin valley",
-      #zone_name == "" & zone_fips == "" ~ "",
+      #### manually check these by looking up locations and comparing to maps of counties/zones
+      zone_name == "c & e la paz" & zone_fips == "021" ~ "west central deserts",
+      zone_name == "s gila/ne maricopa/x n pinal" & zone_fips == "024" ~ "southern gila/tonto nf foothills",
+      zone_name == "c&e yuma" & zone_fips == "026" ~ "southwest deserts",
+      zone_name == "graham/s greenlee" & zone_fips == "030" ~ "upper gila river valley",
+      zone_name == "nc riverside" & zone_fips == "030" ~ "joshua tree national park",
+      zone_name == "x e riverside / e imperial" & zone_fips == "031" ~ "lower colorado river valley",
+      zone_name == "e riverside t x e" & zone_fips == "032" ~ "riverside county/eastern deserts",
+      zone_name == "w & c imperial" & zone_fips == "033" ~ "imperial county",
+      zone_name == "apple and yucca valleys" & zone_fips == "060" ~ "apple and lucerne valleys",
+      zone_name == "c riverside" & zone_fips == "061" ~ "coachella valley",
+      zone_name == "sw & w kootenai" & zone_fips == "002" ~ "coeur d'alene area",
+      zone_name == "w benewah/w latah" & zone_fips == "003" ~ "idaho palouse",
+      zone_name == "n nez perce county" & zone_fips == "026" ~ "lewiston area",
+      zone_name == "central deserts" & zone_fips == "028" ~ "northwest and north central pinal county",
+      zone_name == "sw sj valley" & zone_fips == "091" ~ "southwestern san joaquin valley",
+      zone_name == "san diego county coasts" & zone_fips == "043" ~ "san diego county coastal areas",
+      zone_name == "e central sj valley" & zone_fips == "e central sj valley" ~ "east-central san joaquin valley",
+      zone_name == "northwest plateau / san juan except x sw and se / nc mckinley" & zone_fips == "001" ~ "northwest plateau",
+      #### I can only be so certain about these ones. I add a quality flag for them below
+      # It appears that 048 and 049 from earlier years got combined into 048. 
+      # Plotting 048 zone, it is the southwest of san bernadino county and 
+      # northwest of riverside county
+      (zone_name == "san bernardino county valley/the inland empire" & zone_fips == "048") | 
+        (zone_name == "x sw san bernardino" & zone_fips == "048") |
+        (zone_name == "riverside county valley/the inland empire" & zone_fips == "049") |
+        (zone_name == "w riverside t x nw" & zone_fips == "049") ~ "san bernardino and riverside county valleys -the inland empire",
+      # If c stands for central, this may not be correct since the SD county deserts 
+      # are in the east of the county. however, the storms probably occur in the deserts,
+      # so this may be correct
+      zone_name == "c san diego" & zone_fips == "062" ~ "san diego county deserts",
+      #### check again, fips matched
+      zone_name == "c maricopa" ~ "greater phoenix area",
+      zone_name == "imperial county except the lower colorado river valley" ~ "imperial county",
+      zone_name == "southern wasatch front/lehi/provo/nephi" ~ "southern wasatch front",
+      zone_name == "benton/franklin/walla walla t se/e klickitat" ~ "lower columbia basin",
+      zone_name == "c pima" ~ "tohono oodham nation",
+      zone_name == "e pima" ~ "tohono oodham nation",
+      zone_name == "westcentral mountains / mckinley except nc and ne / cibola except x e / n catron / x sw sanduval / x nw bernalillo / x nw socorro" & zone_fips == "008" ~ "west central mountains",
       TRUE ~ zone_name
     )
   )
 
+# UNCOMMENT IF USE STORMS DATA PRIOR TO 2006
+# 
+# # Adjust the zone fips on these ones
+# storm_details_df <- storm_details_df %>%
+#   dplyr::mutate(
+#     zone_fips = case_when(
+#       zone_name == "san bernardino and riverside county valleys -the inland empire" & 
+#         zone_fips == "049" &
+#         year(storm_start_date_local) <= 2005 ~ "048",
+#       TRUE ~ zone_fips
+#     )
+#   )
+# 
+# # Have to drop this one since I can't identify its exact location
+# storm_details_df <- storm_details_df %>%
+#   filter(!(zone_state == "CA" & zone_name == "san bernardino t sw & x se" & storm_start_date == date("2002-03-13")))
+# 
 
 # Some zone fips change over time for a given zone. For consistency and ease in matching,
 # I set the problematic ones to be the same over time. This won't affect the match if
@@ -349,17 +370,18 @@ for (i in 1:length(file_dates)) {
   # the previous date. We have to treat the tail ends of the date range separately though
   if (i == 1) { # All storm dates BEFORE the second set of zones went into effect
     df_storms <- storm_details_df %>%
-      filter(storm_start_date < file_dates[i + 1])
+      filter(storm_start_date_local < file_dates[i + 1])
     df_zones <- distinct_zonefile_by_zone_df %>%
       filter(zone_file_date == file_dates[i])
   } else if (i == length(file_dates)) { # All storm dates ON/AFTER the last set of zones went into effect
     df_storms <- storm_details_df %>%
-      filter(storm_start_date >= file_dates[i])
+      filter(storm_start_date_local >= file_dates[i])
     df_zones <- distinct_zonefile_by_zone_df %>%
       filter(zone_file_date == file_dates[i])
   } else { # All storm dates ON/AFTER this set of zones went into effect and BEFORE the next set of zones went into effect
     df_storms <- storm_details_df %>%
-      filter(storm_start_date >= file_dates[i], storm_start_date < file_dates[i + 1])
+      filter(storm_start_date_local >= file_dates[i], 
+             storm_start_date_local < file_dates[i + 1])
     df_zones <- distinct_zonefile_by_zone_df %>%
       filter(zone_file_date == file_dates[i])
   }
@@ -390,9 +412,14 @@ if (nrow(df_merged_storms_to_zones) != nrow(storm_details_df)) {
   stop("The merged data should have the same number of rows as the storm details data")
 }
 
+# # Output the cleaned storm-level data
+# filepath <- paste0(path_data_int, "/dust_storms/NWS_reported_dust_storms_cleaned.csv")
+# write_csv(df_merged_storms_to_zones, filepath)
+
+
 # ------------------------------------------------------------------------------
-# Create a storm-to-county crosswalk by merging the storm-by-forecast
-# zone data with the forecast zone-by-county data
+# Create a storm-to-county crosswalk by merging the storm-by-forecast zone
+# data with the forecast zone-by-county data
 
 # Get the counties associated with each forecast zone-zone set in the storm details data
 df_merged_storms_to_zones_distinct <- df_merged_storms_to_zones %>%
@@ -405,7 +432,7 @@ df_merged_zones_to_counties <- left_join(
 
 # Now, we have a many-to-many merge problem. The storm details data can have multiple
 # storms for a given zone-zone set, and the zones-to-counties data can have multiple
-# counties for a given zone. So merging the two on zone gives a m:m merge. Instead,
+# counties for a given zone-zone set. So merging the two on zone gives a m:m merge. Instead,
 # I loop through each row in the storms data (so I only have 1 zone there) and
 # merge that to the zone-to-counties data
 df_merged_storms_to_counties <- data.frame()
@@ -433,69 +460,162 @@ df_merged_storms_to_counties <- bind_rows(
 # Check that there are no duplicates
 check_df_unique_by(df_merged_storms_to_counties, episode_id, event_id, stfp, cntyfp)
 
-# Filter out county observations that don't meet the overlap threshold with the
+# Reconcile duplicate reports for the same dust storm --------------------------
+
+# Convert datetimes to UTC to match the storm warnings data
+storm_details_df <- storm_details_df %>%
+  mutate(
+    hours_to_add = as.numeric(str_sub(cz_timezone, -1, -1)),
+    storm_start_datetime = storm_start_datetime + hours(hours_to_add),
+    storm_end_datetime = storm_end_datetime + hours(hours_to_add)
+  )
+
+# Filter out county observations that don't meet the 1% overlap threshold with the
 # forecast zone used to assign the county a storm
 df_merged_storms_to_counties <- df_merged_storms_to_counties %>%
-  filter(pct_county_overlap >= pct_overlap_threshold)
+  filter(pct_county_overlap >= 1)
 
-# Make a storm ID variable that is episode_id-event_id
+
+
+# ADD LOOP HERE IF WANT TO DO ITERATIONS ON pct_county_overlap THRESHOLD: 5%, 10%, 25%
+
+
+
+# Keep relevant variables
 df_merged_storms_to_counties <- df_merged_storms_to_counties %>%
-  mutate(storm_id = paste0(episode_id, "-", event_id))
+  dplyr::select(stabv, stfp, cntyfp, storm_start_date_local, storm_end_date_local,
+                storm_start_datetime, storm_end_datetime, pct_county_overlap)
 
-# Tidy up
+# Sort
 df_merged_storms_to_counties <- df_merged_storms_to_counties %>%
-  dplyr::select(storm_id, stabv, stfp, cntyfp, storm_start_date, storm_end_date,
-                storm_start_time, storm_end_time, cz_timezone)
+  arrange(stabv, cntyfp, storm_start_datetime, storm_end_datetime)
+
+# Reconcile duplicate storm reports for a given county. This can occur because
+# the same storm was reported multiple times in a given forecast zone, or if
+# the same storm crossed multiple forecast zones that a county is part of. As
+# a rule of them, I reconcile reports that occur within 8 hours of each other
+# for a given county
 
 
-# Create a county-date panel for storms ----------------------------------------
-# This will be useful for merging in the county-date storm warnings panel I 
-# create below. I dot his so I can identify which storms do/don't receive warnings
+df <- df_merged_storms_to_counties
 
-df_merged_storms_to_counties <- df_merged_storms_to_counties %>%
-  mutate(id = paste0(stfp, cntyfp))
+# Step 1: for storms that start at the same time, take the max end time
+df <- df %>%
+  group_by(stabv, cntyfp, storm_start_datetime) %>%
+  dplyr::mutate(
+    rownum = row_number(),
+    storm_end_datetime = max(storm_end_datetime)
+    ) %>%
+  filter(rownum == 1) %>%
+  ungroup() %>%
+  dplyr::select(-rownum)
 
-# Initialize a full county-by-date panel from 2005 through 2022
-counties <- df_merged_storms_to_counties %>%
-  dplyr::distinct(id)
-dates <- data.frame(
-  date = seq(as.Date("2005-01-01"), as.Date("2022-12-31"), by = "days")
-)
-county_storm_panel_df <- crossing(counties, dates) %>%
-  mutate(dust_storm = 0, storm_id = NA)
+# Step 2: similar to step 1, but for storms that end at the same time, take the 
+# min start time
+df <- df %>%
+  group_by(stabv, cntyfp, storm_end_datetime) %>%
+  dplyr::mutate(
+    rownum = row_number(),
+    storm_start_datetime = min(storm_start_datetime)
+  ) %>%
+  filter(rownum == 1) %>%
+  ungroup() %>%
+  dplyr::select(-rownum)
 
-# Loop through the actual warnings data, setting the warning (W) and advisory (Y)
-# dummies equal to 1 when a warning or advisory was in effect
-n <- nrow(df_merged_storms_to_counties)
-for (i in 1:n) {
-  print(paste0("Creating county-date storm panel: ", i, "/", n))
-  id_i <- df_merged_storms_to_counties[i, "id"][[1]]
-  start_i <- df_merged_storms_to_counties[i, "storm_start_date"][[1]]
-  end_i <- df_merged_storms_to_counties[i, "storm_end_date"][[1]]
-  storm_id_i <- df_merged_storms_to_counties[i, "storm_id"][[1]]
-  county_storm_panel_df[
-    county_storm_panel_df$id == id_i &
-      county_storm_panel_df$date >= start_i &
-      county_storm_panel_df$date <= end_i,
-  ][["dust_storm"]] <- 1
-  county_storm_panel_df[
-    county_storm_panel_df$id == id_i &
-      county_storm_panel_df$date >= start_i &
-      county_storm_panel_df$date <= end_i,
-  ][["storm_id"]] <- storm_id_i
+# Step 3: for storms that start on the same day, combine storms that occurred
+# within time_diff_hours hours of each other by taking their min(start_time) and
+# max(end_time)
+time_diff_hours <- 8
+df <- df %>%
+  group_by(stabv, cntyfp, storm_start_date_local) %>%
+  dplyr::mutate(dupe_count = n()) %>%
+  ungroup()
+
+df2 <- df %>%
+  filter(dupe_count > 1) %>%
+  group_by(stabv, cntyfp, storm_start_date_local) %>%
+  arrange(stabv, cntyfp, storm_start_date_local, storm_start_datetime) %>%
+  dplyr::mutate(
+    rownum = row_number(),
+    time_diff = ifelse(rownum > 1, difftime(
+      storm_start_datetime, lag(storm_end_datetime, default = first(storm_end_datetime)), 
+      units = "hours"), 0),
+    group_flag = cumsum(time_diff > time_diff_hours) # flag reports that occur within 8 hours of each other
+    ) %>%
+  ungroup() %>%
+  group_by(stabv, cntyfp, storm_start_date_local, group_flag) %>%
+  dplyr::mutate(
+    rownum = row_number(),
+    storm_start_datetime = min(storm_start_datetime),
+    storm_end_datetime = max(storm_end_datetime)
+  ) %>%
+  ungroup() %>%
+  filter(rownum == 1) %>%
+  dplyr::select(-c(rownum, group_flag, time_diff))
+
+df <- df %>%
+  filter(dupe_count == 1) %>%
+  bind_rows(df2) %>%
+  dplyr::select(-dupe_count)
+
+# Step 4: similar to step 3, but for storms that end on the same day
+df <- df %>%
+  group_by(stabv, cntyfp, storm_end_date_local) %>%
+  dplyr::mutate(dupe_count = n()) %>%
+  ungroup()
+
+df2 <- df %>%
+  filter(dupe_count > 1) %>%
+  group_by(stabv, cntyfp, storm_end_date_local) %>%
+  arrange(stabv, cntyfp, storm_end_date_local, storm_start_datetime) %>%
+  dplyr::mutate(
+    rownum = row_number(),
+    time_diff = ifelse(rownum > 1, difftime(
+      storm_start_datetime, lag(storm_end_datetime, default = first(storm_end_datetime)), 
+      units = "hours"), 0),
+    group_flag = cumsum(time_diff > time_diff_hours) # flag reports that occur within 8 hours of each other
+  ) %>%
+  ungroup() %>%
+  group_by(stabv, cntyfp, storm_end_date_local, group_flag) %>%
+  dplyr::mutate(
+    rownum = row_number(),
+    storm_start_datetime = min(storm_start_datetime),
+    storm_end_datetime = max(storm_end_datetime)
+  ) %>%
+  ungroup() %>%
+  filter(rownum == 1) %>%
+  dplyr::select(-c(rownum, group_flag, time_diff))
+
+df <- df %>%
+  filter(dupe_count == 1) %>%
+  bind_rows(df2) %>%
+  dplyr::select(-dupe_count)
+
+# Step 5: In the off chance that a storm starts/ends on day X and another starts/
+# ends on day X+1, check that the two storms are at least time_diff_hours hours apart
+n_remaining_overlap <- df %>%
+  group_by(stabv, cntyfp) %>%
+  arrange(stabv, cntyfp, storm_start_datetime) %>%
+  dplyr::mutate(
+    rownum = row_number(),
+    time_diff = ifelse(rownum > 1, difftime(
+      storm_start_datetime, lag(storm_end_datetime, default = first(storm_end_datetime)), 
+      units = "hours"), 0)
+  ) %>%
+  filter(time_diff > 0 & time_diff <= time_diff_hours) %>%
+  nrow()
+if (n_remaining_overlap != 0) {
+  stop("Some remaining overlap exists")
 }
 
-# Create final panels and output -----------------------------------------------
+# Output
 
-# County-by-date panel
-panel_county_by_storm <- df_merged_storms_warnings_counties %>%
-  dplyr::select(
-    stabv, stfp, cntyfp, pct_county_overlap, episode_id, event_id,
-    storm_start_date, storm_start_datetime,
-    storm_end_date, storm_end_datetime
-  ) %>%
-  arrange(stabv, stfp, cntyfp, storm_start_date, episode_id, event_id)
-file_out <- paste0(path_data_int, "/Dust_storms/panel_county-by-date_storms and warnings")
-write_csv(panel_county_by_storm, file_out)
 
-# County-by-year panel
+temp <- df %>%
+  mutate(year = year(storm_start_date_local)) %>%
+  group_by(year) %>%
+  dplyr::summarize(nstorms = n())
+
+ggplot() +
+  geom_point(data = temp, aes(x = year, y = nstorms))
+
