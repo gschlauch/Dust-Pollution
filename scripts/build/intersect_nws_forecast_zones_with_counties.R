@@ -20,7 +20,7 @@ state_abbreviations <- c(
 )
 
 # Load the county shapefile
-county_shp <- st_read(paste0(path_data_int, "/census/2020/county/US_county_2020.shp")) %>%
+county_shp <- st_read(paste0(path_data_int, "/shapefiles/census/2010/county/US_county_2010.shp")) %>%
   dplyr::select(-cntyname)
 
 # Initialize a zone-to-county 1:m crosswalk. This will contain all zone files
@@ -29,7 +29,7 @@ xwalk_df <- data.frame()
 
 # Get forecast zone files
 zone_files <- list.files(
-  paste0(path_data_raw, "/dust_storms/forecast_zones"), 
+  paste0(path_data_raw, "/dust_storms/NWS/forecast_zones"), 
   full.names = TRUE
 )
 
@@ -175,6 +175,12 @@ row.names(xwalk_df) <- NULL
 # Remove duplicates. This can occur since, for each state that I loop through,
 # I also include its neighboring states.
 xwalk_df <- xwalk_df %>% dplyr::distinct()
+
+# Check that there is only 1 obs per zone-zonefile-county
+n_unique <- xwalk_df %>% dplyr::select(-pct_county_overlap) %>% distinct() %>% nrow()
+if (n_unique != nrow(xwalk_df)) {
+  stop("There are duplicate counties")
+}
 
 # Output
 write_csv(xwalk_df, paste0(path_data_int, "/Crosswalks/xwalk_NWS_forecast_zones_to_counties.csv"))
