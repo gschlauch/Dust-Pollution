@@ -129,7 +129,11 @@ xwalk_df_final <- xwalk_df_final %>%
   ) %>%
   arrange(desc(pct_county_overlap)) %>%
   filter(row_number() == 1) %>%
-  ungroup()
+  ungroup() %>%
+  dplyr::rename(
+    warning_start_datetime_utc = warning_start_datetime, 
+    warning_end_datetime_utc = warning_end_datetime
+  )
 
 # Output
 write_csv(xwalk_df_final, paste0(path_data_int, "/Dust_storms/NWS_dust_storm_warnings_cleaned.csv"))
