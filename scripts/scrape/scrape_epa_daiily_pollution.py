@@ -9,21 +9,23 @@ import time
 import shutil
 import glob
 
+basedir = "/users/garyschlauch"
+
 # Set default download location
-download_dir = "/users/garyschlauch/downloads"
+download_dir = basedir + "/downloads"
 
 # Initialize the WebDriver with the custom options
-service = Service("/Users/garyschlauch/Documents/webdrivers/geckodriver")
+service = Service(basedir + "/Documents/webdrivers/geckodriver")
 driver = webdriver.Firefox(service=service)
 
 # Set the URL of the EPA website
 url = "https://www.epa.gov/outdoor-air-quality-data/download-daily-data"
 
 # List of pollutants
-pollutants = ["PM2.5", "PM10"]
+pollutants = ["CO"]
 
 # List of years
-years = [str(year) for year in range(2000, 2005)]
+years = [str(year) for year in range(2006, 2023)]
 
 # List of states to skip
 states_to_skip = ["Alaska", "Hawaii", "Virgin Islands", "Guam", "Puerto Rico"]
@@ -33,7 +35,7 @@ states_to_skip = ["Alaska", "Hawaii", "Virgin Islands", "Guam", "Puerto Rico"]
 for pollutant in pollutants:
     
     pollutant_name = pollutant.replace(".", "")
-    destination_dir = f"/Users/garyschlauch/Library/CloudStorage/Box-Box/Dust-Pollution/data/raw/pollution/epa/concentrations/{pollutant_name}/daily"
+    destination_dir = basedir + f"/Library/CloudStorage/Box-Box/Dust-Pollution/data/raw/pollution/epa/{pollutant_name}/daily"
     
     # Navigate to the URL
     driver.get(url)
@@ -142,7 +144,7 @@ for pollutant in pollutants:
 
                 # Wait until the file is downloaded
                 time.sleep(15)
-                while any(glob.glob("/users/garyschlauch/downloads/*.csv.part")):
+                while any(glob.glob(basedir + "/downloads/*.csv.part")):
                     time.sleep(1)
                 time.sleep(1)
 
