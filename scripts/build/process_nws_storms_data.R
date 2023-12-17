@@ -497,10 +497,9 @@ df_merged_storms_to_counties <- df_merged_storms_to_counties %>%
 # a rule, I reconcile reports that occur within 8 hours of each other
 # for a given county
 time_diff_threshold <- 8
-df <- df_merged_storms_to_counties
 
 # Step 1: for storms that start at the same time, take the max end time
-df <- df %>%
+df_merged_storms_to_counties <- df_merged_storms_to_counties %>%
   group_by(stabv, cntyfp, storm_start_datetime_utc) %>%
   dplyr::mutate(
     rownum = row_number(),
@@ -512,7 +511,7 @@ df <- df %>%
 
 # Step 2: similar to step 1, but for storms that end at the same time, take the 
 # min start time
-df <- df %>%
+df_merged_storms_to_counties <- df_merged_storms_to_counties %>%
   group_by(stabv, cntyfp, storm_end_datetime_utc) %>%
   dplyr::mutate(
     rownum = row_number(),
@@ -526,7 +525,7 @@ df <- df %>%
 # ie, if storm X and Y are in county A and storm X ends within 8 hours of when
 # storm Y begins, combine the two storms by taking their min(start time) and
 # max(end time)
-df <- df %>%
+df_merged_storms_to_counties <- df_merged_storms_to_counties %>%
   group_by(stabv, cntyfp) %>%
   arrange(stabv, cntyfp, storm_start_datetime_utc) %>%
   # Figure out which storms should be combined
@@ -560,6 +559,13 @@ df <- df %>%
     storm_end_date_local = storm_end_date_local_cmb,
     storm_end_datetime_utc = storm_end_datetime_utc_cmb
   )
+
+# Compute storm durations
+df_merged_storms_to_counties <- df_merged_storms_to_counties %>%
+  dplyr::mutate(duration = as.numeric(difftime(storm_end_datetime_utc, storm_start_datetime_utc, units = "hours"))) %>%
+  dplyr::select(stabv, stfp, cntyfp, storm_start_date_local, storm_end_date_local,
+                storm_start_datetime_utc, storm_end_datetime_utc, duration)
   
 # Output
-write_csv(df, paste0(path_data_int, "/Dust_storms/NWS_county_dust_storms_cleaned.csv"))
+write_csv(df_merged_storms_to_counties, paste0(path_data_int, "/Dust_storms/NWS_county_dust_storms_cleaned.csv"))
+
